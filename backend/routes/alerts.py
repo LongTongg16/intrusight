@@ -1,12 +1,12 @@
-from datetime import datetime
-from typing import Optional, Dict, Any
+from datetime import datetime, timezone
+from typing import Optional
 import os
 
-from fastapi import APIRouter, HTTPException, Security
+from fastapi import APIRouter, Header, HTTPException, Security
 import httpx
-from core.security import get_current_user
+from core.security import get_current_user, verify_ingest_api_key
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services.alert_service import get_collection, SEVERITY_LABELS, ALLOWED_STATUS
 from services.user_service import get_users_with_telegram_id, get_user_by_email
@@ -19,11 +19,14 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 async def send_telegram_message(chat_id: str, text: str):
     if not BOT_TOKEN or not chat_id or not text:
-        return None
+        return False
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    async with httpx.AsyncClient() as client:
-        res = await client.post(url, json={"chat_id": chat_id, "text": text})
-    return res
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(url, json={"chat_id": chat_id, "text": text})
+        return response.is_success
+    except httpx.HTTPError:
+        return False
 
 
 SEVERITY_THRESHOLD = 2
@@ -34,12 +37,13 @@ class AlertIn(BaseModel):
     src_ip: str
     dest_ip: str
     signature: str
-    severity: int
+    severity: int = Field(ge=1, le=3)
     src_port: Optional[int] = None
     dest_port: Optional[int] = None
     proto: Optional[str] = None
     category: Optional[str] = None
     sid: Optional[int] = None
+    source_nids: Optional[str] = None
 
 
 class StatusUpdate(BaseModel):
@@ -47,14 +51,18 @@ class StatusUpdate(BaseModel):
 
 
 class NoteIn(BaseModel):
-    text: str
+    text: str = Field(min_length=1, max_length=2000)
 
 
 class AlertUpdate(BaseModel):
     dest_ip: Optional[str] = None
     src_ip: Optional[str] = None
     signature: Optional[str] = None
-    severity: Optional[int] = None
+    severity: Optional[int] = Field(default=None, ge=1, le=3)
+
+
+class TelegramAlertRequest(BaseModel):
+    alert_id: str
 
 
 @router.get("/")
@@ -69,16 +77,20 @@ def health():
 
 
 @router.post("/ingest/alerts", status_code=201)
-async def ingest_alert(alert: AlertIn):
+async def ingest_alert(
+    alert: AlertIn,
+    ingest_api_key: str | None = Header(default=None, alias="X-Ingest-API-Key"),
+):
+    verify_ingest_api_key(ingest_api_key)
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     doc = alert.model_dump()
     doc["severity_label"] = SEVERITY_LABELS.get(doc["severity"], "unknown")
     doc["status"] = "new"
     doc["notes"] = []
-    doc["created_at"] = datetime.utcnow().isoformat()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
 
     dest_location = get_location_from_ip(doc["dest_ip"])
     if dest_location:
@@ -97,7 +109,10 @@ async def ingest_alert(alert: AlertIn):
         if dest_location:
             location_info = f" ({dest_location.get('city', 'Unknown')}, {dest_location.get('country', 'Unknown')})"
         text = f"🚨 Alert: {doc['signature']} from {doc['src_ip']} to {doc['dest_ip']}{location_info}, severity {doc['severity_label']}"
-        users = await get_users_with_telegram_id()
+        try:
+            users = await get_users_with_telegram_id()
+        except Exception:
+            users = []
         for user in users:
             await send_telegram_message(user["telegram_id"], text)
 
@@ -111,10 +126,11 @@ def get_alerts(
     dest_ip: Optional[str] = None,
     proto: Optional[str] = None,
     status: Optional[str] = None,
+    current_user: dict = Security(get_current_user),
 ):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     query = {}
     if severity is not None:
@@ -135,10 +151,10 @@ def get_alerts(
 # ── STATIC ROUTES BEFORE WILDCARD ──────────────────────────────
 
 @router.get("/alerts/dashboard/summary")          # ✅ moved up
-def summary():
+def summary(current_user: dict = Security(get_current_user)):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     alerts = list(collection.find({}, {"_id": 0, "severity_label": 1}))
     result = {"high": 0, "medium": 0, "low": 0}
@@ -152,27 +168,38 @@ def summary():
 
 
 @router.post("/alerts/send-telegram")             # ✅ moved up
-async def send_telegram(alert: dict, current_user: dict = Security(get_current_user)):
-    chat_id = alert.get("chat_id")
-    text = alert.get("text")
-    if not chat_id or not text:
-        raise HTTPException(status_code=400, detail="chat_id and text required")
+async def send_telegram(
+    body: TelegramAlertRequest,
+    current_user: dict = Security(get_current_user),
+):
+    collection = get_collection()
+    if collection is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
-    res = await send_telegram_message(chat_id, text)
-    if res is None:
-        raise HTTPException(status_code=500, detail="Telegram bot not configured")
+    alert = collection.find_one({"id": body.alert_id}, {"_id": 0})
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
 
-    if res.status_code != 200:
-        raise HTTPException(status_code=res.status_code, detail=res.text)
+    user = await get_user_by_email(current_user.get("sub", ""))
+    chat_id = user.get("telegram_id") if user else None
+    if not chat_id:
+        raise HTTPException(status_code=400, detail="No Telegram chat is configured for this account")
 
-    return {"ok": True, "telegram_response": res.json()}
+    text = (
+        f"Alert: {alert.get('signature', 'Unknown alert')} | "
+        f"{alert.get('src_ip', 'unknown')} -> {alert.get('dest_ip', 'unknown')} | "
+        f"severity {alert.get('severity_label', 'unknown')}"
+    )
+    if not await send_telegram_message(chat_id, text):
+        raise HTTPException(status_code=502, detail="Telegram delivery failed")
+    return {"ok": True}
 
 
 @router.post("/alerts/refresh-all-locations")     # ✅ moved up
-def refresh_all_locations():
+def refresh_all_locations(current_user: dict = Security(get_current_user)):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     alerts = list(collection.find({}, {"_id": 0}))
     updated_count = 0
@@ -195,10 +222,10 @@ def refresh_all_locations():
 # ── WILDCARD ROUTES AFTER ───────────────────────────────────────
 
 @router.get("/alerts/{alert_id}")
-def get_alert(alert_id: str):
+def get_alert(alert_id: str, current_user: dict = Security(get_current_user)):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     alert = collection.find_one({"id": alert_id}, {"_id": 0})
     if not alert:
@@ -208,10 +235,14 @@ def get_alert(alert_id: str):
 
 
 @router.patch("/alerts/{alert_id}/status")
-def update_status(alert_id: str, body: StatusUpdate):
+def update_status(
+    alert_id: str,
+    body: StatusUpdate,
+    current_user: dict = Security(get_current_user),
+):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     new_status = body.status.lower().strip()
     if new_status not in ALLOWED_STATUS:
@@ -226,10 +257,14 @@ def update_status(alert_id: str, body: StatusUpdate):
 
 
 @router.patch("/alerts/{alert_id}")
-def update_alert(alert_id: str, body: AlertUpdate):
+def update_alert(
+    alert_id: str,
+    body: AlertUpdate,
+    current_user: dict = Security(get_current_user),
+):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     update_data = {}
     if body.dest_ip is not None:
@@ -261,7 +296,7 @@ def update_alert(alert_id: str, body: AlertUpdate):
 async def add_note(alert_id: str, body: NoteIn, current_user: dict = Security(get_current_user)):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     user_email = current_user.get("sub")
     user_data = await get_user_by_email(user_email)
@@ -270,7 +305,7 @@ async def add_note(alert_id: str, body: NoteIn, current_user: dict = Security(ge
         "text": body.text,
         "author": user_data.get("full_name", "Analyst") if user_data else "Analyst",
         "role": current_user.get("role", "Analyst"),
-        "time": datetime.utcnow().isoformat()
+        "time": datetime.now(timezone.utc).isoformat()
     }
 
     result = collection.update_one({"id": alert_id}, {"$push": {"notes": note}})
@@ -281,10 +316,10 @@ async def add_note(alert_id: str, body: NoteIn, current_user: dict = Security(ge
 
 
 @router.get("/alerts/{alert_id}/notes")
-def get_notes(alert_id: str):
+def get_notes(alert_id: str, current_user: dict = Security(get_current_user)):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     alert = collection.find_one({"id": alert_id}, {"_id": 0, "notes": 1})
     if not alert:
@@ -302,10 +337,13 @@ def get_notes(alert_id: str):
 
 
 @router.post("/alerts/{alert_id}/refresh-location")
-def refresh_alert_location(alert_id: str):
+def refresh_alert_location(
+    alert_id: str,
+    current_user: dict = Security(get_current_user),
+):
     collection = get_collection()
     if collection is None:
-        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     alert = collection.find_one({"id": alert_id}, {"_id": 0})
     if not alert:

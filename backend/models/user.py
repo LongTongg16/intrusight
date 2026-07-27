@@ -13,10 +13,16 @@ class UserIn(BaseModel):
     role: RoleEnum
     telegram_id: Optional[str] = None  # optional field
 
-    @field_validator('email', 'full_name', 'password', mode='before')
+    @field_validator('email', 'full_name', mode='before')
     def trim_strings(cls, v):
         if isinstance(v, str):
             return v.strip()
+        return v
+
+    @field_validator('role')
+    def public_registration_is_analyst_only(cls, v):
+        if v != RoleEnum.ANALYST:
+            raise ValueError("Public registration is limited to Security Analyst accounts")
         return v
 
 class UserOut(BaseModel):
@@ -41,17 +47,11 @@ class ChangePasswordIn(BaseModel):
     current_password: str
     new_password: str
     
-    @field_validator('current_password', 'new_password', mode='before')
-    def trim_strings(cls, v):
-        if isinstance(v, str):
-            return v.strip()
-        return v
-
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
 
-    @field_validator('email', 'password', mode='before')
+    @field_validator('email', mode='before')
     def trim_strings(cls, v):
         if isinstance(v, str):
             return v.strip()
@@ -68,4 +68,4 @@ class UserListOut(BaseModel):
     full_name: str
     role: str
     status: str
-    telegram_id: Optional[str] = None 
+    telegram_id: Optional[str] = None

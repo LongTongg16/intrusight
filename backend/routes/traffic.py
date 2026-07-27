@@ -9,8 +9,9 @@ while the Alerts page shows only the triggered subset.
 """
 
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Security
+from pymongo.errors import PyMongoError
 from core.security import get_current_user
 from services.alert_service import get_collection
 
@@ -56,7 +57,7 @@ _CLEAN_FLOWS = [
 ]
 
 # Spread clean flows across the last 24 hours with realistic timestamps
-_BASE_TIME = datetime.utcnow()
+_BASE_TIME = datetime.now(timezone.utc)
 
 
 def _clean_flow_with_ts(flow: dict, minutes_ago: int) -> dict:
@@ -88,24 +89,27 @@ def get_traffic_logs(current_user: dict = Security(get_current_user)):
 
     triggered_flows = []
     if col is not None:
-        for alert in col.find({}, {"_id": 0}).sort("timestamp", -1).limit(300):
-            triggered_flows.append({
-                "ts":        alert.get("timestamp", ""),
-                "src":       alert.get("src_ip", "—"),
-                "dst":       alert.get("dest_ip", "—"),
-                "sport":     alert.get("src_port") or 0,
-                "dport":     alert.get("dest_port") or 0,
-                "proto":     alert.get("proto", "TCP"),
-                "bytes":     random.randint(300, 9000),   # not stored on alert, estimate
-                "packets":   random.randint(2, 50),
-                "flags":     "PSH, ACK",
-                "duration":  f"{random.uniform(0.05, 2.5):.2f}s",
-                "ids":       "Suricata",
-                "triggered": True,
-                "signature": alert.get("signature", ""),
-                "severity":  alert.get("severity_label", ""),
-                "label":     alert.get("signature", ""),
-            })
+        try:
+            for alert in col.find({}, {"_id": 0}).sort("timestamp", -1).limit(300):
+                triggered_flows.append({
+                    "ts":        alert.get("timestamp", ""),
+                    "src":       alert.get("src_ip", "—"),
+                    "dst":       alert.get("dest_ip", "—"),
+                    "sport":     alert.get("src_port") or 0,
+                    "dport":     alert.get("dest_port") or 0,
+                    "proto":     alert.get("proto", "TCP"),
+                    "bytes":     random.randint(300, 9000),   # not stored on alert, estimate
+                    "packets":   random.randint(2, 50),
+                    "flags":     "PSH, ACK",
+                    "duration":  f"{random.uniform(0.05, 2.5):.2f}s",
+                    "ids":       alert.get("source_nids", "Unknown"),
+                    "triggered": True,
+                    "signature": alert.get("signature", ""),
+                    "severity":  alert.get("severity_label", ""),
+                    "label":     alert.get("signature", ""),
+                })
+        except PyMongoError:
+            triggered_flows = []
 
     clean_flows = _seeded_clean_flows()
 

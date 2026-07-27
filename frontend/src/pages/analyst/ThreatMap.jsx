@@ -7,7 +7,7 @@ import L from 'leaflet';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
-  "https://network-intrusion-detection-system-fyp.onrender.com";
+  "http://localhost:8000";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -33,7 +33,7 @@ const MapFocuser = ({ focusAlert, markerRefs }) => {
     }, 1400);
 
     return () => clearTimeout(timer);
-  }, [focusAlert]);
+  }, [focusAlert, map, markerRefs]);
 
   return null;
 };

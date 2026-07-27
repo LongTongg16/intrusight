@@ -49,9 +49,6 @@ const AlertDetails = () => {
     }
   };
 
-  // Modal & UI State
-  const [showIncidentModal, setShowIncidentModal] = useState(false);
-  const [showLinkModal, setShowLinkModal] = useState(false);
   const [selectedProgress, setSelectedProgress] = useState("new");
 
   // Related alerts state

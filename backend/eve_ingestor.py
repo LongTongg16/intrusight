@@ -9,8 +9,9 @@ load_dotenv()
 EVE_PATH = os.getenv("ALERTS_FILE_PATH", "/opt/homebrew/var/log/suricata/eve.json")
 API_URL = os.getenv(
     "API_URL",
-    "https://network-intrusion-detection-system-fyp.onrender.com/api/ingest/alerts"
+    "http://localhost:8000/api/ingest/alerts"
 )
+INGEST_API_KEY = os.getenv("INGEST_API_KEY")
 
 SEVERITY_THRESHOLD = int(os.getenv("SEVERITY_THRESHOLD", "2"))
 
@@ -71,12 +72,19 @@ def build_payload(event: dict) -> dict:
 
 
 def send_alert(payload: dict) -> bool:
+    if not INGEST_API_KEY:
+        return False
     try:
-        response = requests.post(API_URL, json=payload, timeout=10)
+        response = requests.post(
+            API_URL,
+            json=payload,
+            headers={"X-Ingest-API-Key": INGEST_API_KEY},
+            timeout=10,
+        )
         if response.status_code in (200, 201):
             return True
 
-        print(f"\n Failed: {response.status_code} - {response.text[:300]}")
+        print(f"\nAlert ingestion failed with HTTP {response.status_code}")
         return False
 
     except requests.RequestException as e:
@@ -121,6 +129,9 @@ def process_line(line: str) -> str:
 
 
 def main():
+    if not INGEST_API_KEY:
+        raise SystemExit("INGEST_API_KEY must be set")
+
     sent = 0
     skipped = 0
     failed = 0

@@ -6,13 +6,17 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     services:
       mongodb:
-        image: mongo:latest
+        image: mongo:8.0
         options: >-
           --health-cmd "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"
           --health-interval 10s
@@ -22,12 +26,14 @@ jobs:
           - 27017:27017
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: '3.12'
+        cache: pip
+        cache-dependency-path: backend/requirements.txt
 
     - name: Install dependencies
       run: |
@@ -38,13 +44,19 @@ jobs:
     - name: Run tests with coverage
       env:
         MONGODB_URL: mongodb://localhost:27017
+        SECRET_KEY: ci-only-secret-key-00000000000000000000000000000000
+        INGEST_API_KEY: ci-only-ingest-key-000000000000000000000000000000
       run: |
         cd backend
         pytest --cov --cov-report=xml
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      if: env.CODECOV_TOKEN != ''
+      uses: codecov/codecov-action@v6
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
+        token: ${{ env.CODECOV_TOKEN }}
         files: ./backend/coverage.xml
         flags: unittests
         name: codecov-umbrella

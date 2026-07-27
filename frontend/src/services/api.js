@@ -1,12 +1,10 @@
 /**
  * api.js - Central API service layer
- * Handles two different backends: 
- * Auth (8000) and Alerts/Dashboard (8001)
+ * Uses one configurable FastAPI backend.
  */
 
-// Define the two different base URLs
-const AUTH_BASE = import.meta.env.VITE_AUTH_URL || "https://network-intrusion-detection-system-fyp.onrender.com";
-const ALERTS_BASE = import.meta.env.VITE_ALERTS_URL || "https://network-intrusion-detection-system-fyp.onrender.com";
+const AUTH_BASE = import.meta.env.VITE_AUTH_URL || import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const ALERTS_BASE = import.meta.env.VITE_ALERTS_URL || import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 /**
  * Core request helper
@@ -58,7 +56,7 @@ export async function healthCheck() {
 // --- ALERTS & DASHBOARD SERVICES (Port 8001) ---
 
 export async function getDashboardSummary() {
-  return request(ALERTS_BASE, "/api/dashboard/summary");
+  return request(ALERTS_BASE, "/api/alerts/dashboard/summary");
 }
 
 export async function getAlerts(params = {}) {
@@ -114,7 +112,7 @@ export async function refreshAllLocations() {
   });
 }
 
-export async function getTrafficLogs(params = {}) {
+export async function getTrafficLogs() {
   return request(ALERTS_BASE, "/api/traffic");
 }
 

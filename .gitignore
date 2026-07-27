@@ -1,2 +1,43 @@
-# Local Netlify folder
-.netlify
+# Secrets and local configuration
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Node / Vite
+node_modules/
+frontend/dist/
+*.local
+
+# Runtime data and generated artifacts
+*.log
+backend/eve.json
+backend/backups/
+backend/backend/
+backend/geoip/*.mmdb
+mongo_data/
+
+# Source archives should be produced as release artifacts, not committed
+*.zip
+
+# IDE, OS, and deployment state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.netlify/

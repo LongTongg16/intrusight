@@ -6,7 +6,7 @@ function NetworkTraffic() {
   const [ip, setIp] = useState("");
   const [port, setPort] = useState("");
   const [protocol, setProtocol] = useState("ALL");
-  const [timeRange, setTimeRange] = useState("24H");
+  const [, setTimeRange] = useState("24H");
   const [idsSource, setIdsSource] = useState("ALL");
   const [flowType, setFlowType] = useState("ALL"); // ALL | TRIGGERED | CLEAN
   const [selectedIp, setSelectedIp] = useState(null);

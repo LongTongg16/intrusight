@@ -10,9 +10,10 @@ load_dotenv()
 
 API_URL = os.getenv(
     "API_URL",
-    "https://network-intrusion-detection-system-fyp.onrender.com/api/ingest/alerts"
+    "http://localhost:8000/api/ingest/alerts"
 )
-ZEEK_LOG_FILE = "zeek_notice.log"
+INGEST_API_KEY = os.getenv("INGEST_API_KEY")
+ZEEK_LOG_FILE = os.getenv("ZEEK_LOG_FILE", "zeek_notice.log")
 
 SEVERITY_THRESHOLD = int(os.getenv("SEVERITY_THRESHOLD", "2"))
 SEVERITY_LABELS = {1: "high", 2: "medium", 3: "low"}
@@ -44,6 +45,9 @@ def compute_severity(data: dict) -> int:
     return NOTE_TO_SEVERITY.get(note, 2)
 
 def start_reading():
+    if not INGEST_API_KEY:
+        raise SystemExit("INGEST_API_KEY must be set")
+
     print("Ingestor Mode: ZEEK")
     print(f"Watching file: {ZEEK_LOG_FILE}")
     print(f"API endpoint: {API_URL}")
@@ -84,7 +88,12 @@ def start_reading():
                     "source_nids": "ZEEK"
                 }
 
-                req = requests.post(API_URL, json=payload, timeout=60)
+                req = requests.post(
+                    API_URL,
+                    json=payload,
+                    headers={"X-Ingest-API-Key": INGEST_API_KEY},
+                    timeout=60,
+                )
 
                 if req.status_code in (200, 201):
                     label = SEVERITY_LABELS.get(severity, "unknown")
@@ -99,7 +108,7 @@ def start_reading():
                     sent += 1
                 else:
                     failed += 1
-                    print(f"\n✖️ Failed ingest ({req.status_code}): {req.text[:200]}")
+                    print(f"\n✖️ Alert ingestion failed with HTTP {req.status_code}")
 
             except json.JSONDecodeError:
                 # Ignore malformed lines

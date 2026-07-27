@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_URL = os.getenv("API_URL", "https://network-intrusion-detection-system-fyp.onrender.com/api/ingest/alerts")
+API_URL = os.getenv("API_URL", "http://localhost:8000/api/ingest/alerts")
+INGEST_API_KEY = os.getenv("INGEST_API_KEY")
 
 
 def generate_real_mac(device_type="client"):
@@ -57,11 +58,18 @@ def trigger_fake_kismet_alert():
     }
 
     try:
-        response = requests.post(API_URL, json=payload, timeout=60)
+        if not INGEST_API_KEY:
+            raise RuntimeError("INGEST_API_KEY must be set")
+        response = requests.post(
+            API_URL,
+            json=payload,
+            headers={"X-Ingest-API-Key": INGEST_API_KEY},
+            timeout=60,
+        )
         if response.status_code in (200, 201):
             print(f"✔️ [KISMET] Attack: {payload['signature']} | {payload['src_ip']} -> {payload['dest_ip']}")
         else:
-            print(f"Failed to send: {response.status_code} - {response.text}")
+            print(f"Failed to send: HTTP {response.status_code}")
     except Exception as e:
         print(f"Error: {e}")
 

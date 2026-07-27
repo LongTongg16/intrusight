@@ -15,8 +15,28 @@ from core.security import create_access_token
 
 @pytest.fixture
 def client():
-    """Provide TestClient for API testing."""
-    return TestClient(app)
+    """Provide an authenticated TestClient for alert API testing."""
+    user_id = str(ObjectId())
+    token = create_access_token({
+        "sub": "analyst@example.com",
+        "user_id": user_id,
+        "role": "Security Analyst"
+    })
+    with patch("database.db") as mock_db:
+        mock_db.__getitem__.return_value.find_one = AsyncMock(
+            return_value={
+                "status": "active",
+                "role": "Security Analyst",
+                "token_version": 0,
+            }
+        )
+        yield TestClient(
+            app,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-Ingest-API-Key": os.environ["INGEST_API_KEY"],
+            },
+        )
 
 
 @pytest.fixture
@@ -66,7 +86,10 @@ class TestAlertIngestion:
             mock_collection.insert_one.return_value.inserted_id = ObjectId()
             mock_get_col.return_value = mock_collection
 
-            with patch('routes.alerts.get_location_from_ip') as mock_geo:
+            with patch('routes.alerts.get_location_from_ip') as mock_geo, patch(
+                'routes.alerts.get_users_with_telegram_id',
+                new=AsyncMock(return_value=[]),
+            ):
                 mock_geo.return_value = None
 
                 response = client.post("/api/ingest/alerts", json=sample_alert)
@@ -83,8 +106,8 @@ class TestAlertIngestion:
 
             response = client.post("/api/ingest/alerts", json=sample_alert)
 
-            assert response.status_code == 500
-            assert "MongoDB not connected" in response.json()["detail"]
+            assert response.status_code == 503
+            assert "Database unavailable" in response.json()["detail"]
 
 class TestGetAlerts:
     """Tests for retrieving alerts."""
@@ -176,17 +199,21 @@ class TestGetAlerts:
 
             response = client.get("/api/alerts")
 
-            assert response.status_code == 500
+            assert response.status_code == 503
 
-    def test_get_alerts_no_auth_required(self, client):
-        """Test getting alerts does not require authentication."""
+    def test_get_alerts_requires_authentication(self):
+        """Test getting alerts requires authentication."""
         with patch('routes.alerts.get_collection') as mock_get_col:
             mock_collection = MagicMock()
             mock_collection.find.return_value.sort.return_value = []
             mock_get_col.return_value = mock_collection
 
-            response = client.get("/api/alerts")
-            assert response.status_code == 200
+            response = TestClient(app).get("/api/alerts")
+            assert response.status_code == 401
+
+    def test_ingestion_rejects_missing_api_key(self, sample_alert):
+        response = TestClient(app).post("/api/ingest/alerts", json=sample_alert)
+        assert response.status_code == 401
 
 
 class TestAlertDetail:

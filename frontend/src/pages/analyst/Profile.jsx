@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import "./analyst.css";
-import { useTheme } from "../../contexts/ThemeContext";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
-  "https://network-intrusion-detection-system-fyp.onrender.com";
+  "http://localhost:8000";
 
 function getPasswordStrength(password) {
   if (!password) return null;
@@ -39,7 +38,6 @@ const TABS = [
 ];
 
 function Profile() {
-  const { isDarkMode } = useTheme();
   const [tab, setTab] = useState("PERSONAL");
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -65,8 +63,6 @@ function Profile() {
   const [notifMobile, setNotifMobile] = useState(true);
   const [notifTelegram, setNotifTelegram] = useState(true);
   const [notifEmail, setNotifEmail] = useState(false);
-  const [severityPref, setSeverityPref] = useState("HIGH_ONLY");
-
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     current: "",
@@ -106,7 +102,7 @@ function Profile() {
           phone: res.data.phone || "",
           telegram_id: res.data.telegram_id || "",
         });
-      } catch (err) {
+      } catch {
         showToast("Failed to load profile", "error");
       } finally {
         setLoading(false);

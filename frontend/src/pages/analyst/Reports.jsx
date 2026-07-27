@@ -18,7 +18,9 @@ function loadLocalHistory() {
 
 function saveLocalHistory(items) {
   try { localStorage.setItem(getStorageKey(), JSON.stringify(items)); }
-  catch {}
+  catch {
+    // Reporting still works when browser storage is unavailable.
+  }
 }
 
 

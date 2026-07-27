@@ -1,15 +1,14 @@
 import React, { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";  // 
+import { NavLink } from "react-router-dom";
 import "./ForgotPassword.css";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
-  const navigate = useNavigate();
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Reset link sent to:", email);
-    navigate("/login");  
+    setSubmitted(true);
   };
 
   return (
@@ -66,7 +65,8 @@ const ForgotPassword = () => {
         <div className="auth-card">
           <h1>Forgot your password?</h1>
           <p className="subtitle">
-            Enter your registered email address and we'll send you a password reset link.
+            Self-service password reset is not implemented. Contact an administrator
+            to reset your password.
           </p>
 
           <form onSubmit={handleSubmit} className="auth-form">
@@ -80,9 +80,15 @@ const ForgotPassword = () => {
             />
 
             <button type="submit">
-              REQUEST PASSWORD RESET LINK
+              SHOW RESET INSTRUCTIONS
             </button>
           </form>
+          {submitted && (
+            <p className="subtitle" role="status">
+              Ask an IntruSight administrator to use the account-management reset
+              workflow. No email was sent.
+            </p>
+          )}
         </div>
       </div>
 

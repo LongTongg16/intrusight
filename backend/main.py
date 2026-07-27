@@ -1,3 +1,6 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -9,19 +12,24 @@ from routes import maintenance
 from routes import reports
 from routes import traffic
 
+load_dotenv()
+
 app = FastAPI(title="IDS Backend API")
 
 origins = [
-    "http://localhost:5173",
-    "https://intrusight.netlify.app/p",
+    origin.strip().rstrip("/")
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
 ]
+if not origins or "*" in origins:
+    raise RuntimeError("CORS_ORIGINS must contain explicit trusted origins")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,  
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Ingest-API-Key"],
 )
 
 app.include_router(maintenance.router)
@@ -74,5 +82,3 @@ def custom_openapi():
 
 
 app.openapi = custom_openapi
-
-print("Loaded FastAPI app with CORS origins:", origins)

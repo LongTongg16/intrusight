@@ -1,241 +1,39 @@
-# Backend – Network‑Intrusion‑Detection‑System
+# IntruSight backend
 
-This directory contains the Python/FastAPI server that powers the IDS
-dashboard.  It exposes a small JSON REST API that the frontend can talk
-to when running locally (or once deployed).
+The backend is the FastAPI service, MongoDB persistence layer, IDS ingestors,
+and development simulators for IntruSight.
 
-# Features
-- User authentication
-- IDS alert ingestion (Suricata EVE JSON)
-- Alert validation and processing
-- MongoDB storage
-- Alert filtering
-- Integration with frontend dashboard
-
-## IDS Setup & Local Rules
-
-# Suricata Setup
-1. **Install Suricata**: Download the Windows MSI installer from the [official Suricata website](https://suricata.io/download/) and run it. It will install to `C:\Program Files\Suricata`.
-2. **Add Local Rules**: We need to tell Suricata what to look for.
-   * Open your File Explorer and go to `C:\Program Files\Suricata\rules\`.
-   * Open the file named `local.rules` using Notepad.
-   * Paste this exact line at the bottom and save the file:
-     `alert icmp any any -> any any (msg:"Suricata Ping Sweep Detected"; sid:1000001; rev:1;)`
-3. **Run Suricata**: 
-   * Click the Windows Start Button, type `cmd`, right-click **Command Prompt**, and select **Run as Administrator**.
-   * Type these commands, pressing Enter after each:
-     ```cmd
-     cd "C:\Program Files\Suricata"
-     suricata.exe -c suricata.yaml -i 192.168.1.XX
-     ```
-     (Replace with your computer IP)
-
-
-# Snort Setup
-1. **Install Snort**: Download the Windows executable from the [Snort website](https://www.snort.org/downloads) and install it directly to `C:\Snort`. (You will also need to install **Npcap** or **WinPcap** if you haven't already, so Snort can read the network).
-2. **Add Local Rules**: 
-   * Go to `C:\Snort\rules\`.
-   * Open `local.rules` in Notepad.
-   * Paste this line at the bottom and save:
-     `alert tcp any any -> any 80 (msg:"[Web] Snort Admin Page Access Attempt"; sid:1000005; rev:1;)`
-3. **Run Snort**:
-   * Open Command Prompt as **Administrator**.
-   * Type these commands:
-     ```cmd
-     cd C:\Snort\bin
-     snort.exe -c C:\Snort\etc\snort.conf -i 1
-     ```
-# Kismet Setup
-1. **Start the Kismet Server**: Kismet natively requires a Linux environment (or WSL on Windows). Run your Kismet engine from the terminal (e.g., kismet -c wlan0).
-
-2. **Access the Web UI**: Open your web browser and go to http://localhost:2501.
-
-3. **Generate an API Key**:
-
-    * Log in using your admin credentials (or create them if it's your first launch).
-
-    * Click the menu icon (top left) and navigate to Settings > API Keys (or click your username/profile).
-
-    * Click Generate New Key, assign it a descriptive name (like "IDS Ingestor"), and copy the generated key.
-
-4. **Link to Backend**:
-
-    * Open the .env file in your backend directory.
-
-    * Add the following line, pasting the key you just copied: KISMET_API_KEY=your_copied_api_key_here
-
-
-# Zeek Setup
-1. **Install Zeek**: Zeek also requires a Linux environment (or WSL on Windows). Install it via your package manager (e.g., sudo apt install zeek).
-
-2. **Configure the Interface**: Open the node configuration file (typically /opt/zeek/etc/node.cfg) and ensure the interface= matches your active network adapter (e.g., interface=eth0).
-
-3. **Run Zeek**: Start the engine by typing sudo zeekctl deploy in your terminal. Zeek will begin monitoring and writing anomalies to its notice.log file.
-
-4. **Simulator**:  By running the provided zeek_simulator.py and kismet_simulator.py scripts to generate authentic test data for your dashboard.
-
-
-
----
+Use the [root README](../README.md) for complete setup, environment, architecture,
+testing, deployment, security, and attribution documentation.
 
 ## Quick start
 
-1. **Install Python deps**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp ../.env.example .env
+```
 
-   ```bash
-   cd backend
-   python -m venv .venv           # optional but recommended
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-   Frontend Team: Skip to step 3 and 4. Step 2 is for testing purposes.
-
-
-
-2.  **Start a MongoDB instance**
-
-The API uses MongoDB via motor. You can start a local server using
-Docker (preferred) or any existing instance.
-
-# recommended – uses the same compose file used by the test suite
+Replace every required placeholder in `.env`, start MongoDB, and run:
 
 ```bash
-docker-compose -f docker-compose.test.yml up -d
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The default connection string is mongodb://localhost:27017. To
-override, create a .env file with:
-```bash
-MONGODB_URL=mongodb://<your‑host>:<port>
-DATABASE_NAME=seimless_db
-```
+The API documentation is at `http://localhost:8000/docs`.
 
-3. **Run the API**
+## Ingestion
 
-```bash
-uvicorn main:app --reload
-```
+All engine workers post to `/api/ingest/alerts` using the
+`X-Ingest-API-Key` header. `INGEST_API_KEY` must match in the API and worker
+environments. Kismet additionally requires its own `KISMET_API_KEY`.
 
-The server will listen on http://127.0.0.1:8000 by default.
---reload restarts automatically when you change any file.
+The supplied Suricata and Snort rule/signature examples are lab fixtures. This
+service consumes rule output; it does not manage IDS rule deployment.
 
-Notes for frontend integration
-Base URL: when running locally the frontend can make requests to
-http://localhost:8000/api/.... CORS is not configured yet; if the
-browser blocks cross‑origin calls you may need to allow it or run the
-frontend server on the same host/port.
+## GeoLite2
 
-Registration payload: the JSON keys are: 
-email, password, full_name and role. 
-Registration payload:
-```json
-{
-  "email": "user@example.com",
-  "password": "String123!",
-  "full_name": "User Name",
-  "role": "Security Analyst"
-}
-```
-
-Only "Security Analyst" and "Administrator"
-are currently accepted; the UI may hard‑code "Security Analyst" for
-now as the select box is disabled in the React page.
-
-Error handling: the server returns 400 with a detail message when
-validation fails (e.g. weak password, email already exists). The
-frontend should surface this to the user.
-
-Approval workflow: every new account is created with approved = False. The UI should inform users that an administrator must approve their account; the backend does not yet provide an approval endpoint.
-
-
-4. **Run the Frontend**
-   
-In new terminal :
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The frontend will run on : http://localhost:5173
-
-5.**IDS Alerts Ingestion**
-
-Simulating Suricata alerts locally,
-```bash
-cd backend
-python3 eve_ingestor.py
-```
-
-Viewing alerts
-```bash
-curl http://127.0.0.1:8000/alerts
-```
-
-Live Monitoring
-```bash
-tail -f /var/log/suricata/eve.json | grep '"event_type":"alert"'
-```
-
-
-6. **IDS Alert Pipeline**
-Current pipeline works like this :
-Suricata / IDS -> eve.json (alert log) -> eve_ingestor.py -> FastAPI Backend (app.py) -> MongoDB -> Frontend Dashboard
-
-7.  **Swagger Docs**
-
-Swagger / docs: visit
-http://localhost:8000/docs or http://localhost:8000/redoc while
-the server is running for interactive API documentation.
-
-Folder Structure
-
-```
-backend/
-├── database.py           # MongoDB client helper
-├── models/               # Pydantic schemas, data models
-│   └── user.py           # UserIn / UserOut models
-├── routes/               # FastAPI routers
-│   └── auth.py           # `/api/auth` endpoints
-├── services/             # Business logic / helpers
-│   └── alert_service.py  # Alert processing, validation, filtering
-│   └── user_service.py   # validation & create_user()
-├── tests/                # pytest async tests
-│   ├── conftest.py       # fixtures (mongodb_client, etc.)
-│   └── test_auth.py      # registration/password/full‑name tests
-├── eve_ingestor.py       # reads Suricata eve.json, extract alerts
-├── snort_ingestor.py     # Script to read Snort logs
-├── eve_ingestor.py       # Script to read Suricata logs
-├── kismet_ingestor.py    # Script to receive Kismet data
-├── kismet_simulator.py   # Generates fake Wi-Fi attacks
-├── zeek_ingestor.py      # Script to read Zeek logs
-├── zeek_simulator.py     # Generates fake network anomalies
-├── main.py               # FastAPI app instance
-├── pytest.ini            # test configuration
-├── .env                  # local environment override (ignored by git)
-├── .env.test             # test DB URL
-├── requirements.txt      # Python dependencies
-├── docker-compose.test.yml  # launches a temporary MongoDB
-└── IMPLEMENTATION_SUMMARY.md / TEST_IMPLEMENTATION_CHECKLIST.md / …
-```
-
-
-# Testing
-Run the entire test suite with:
-
-```bash
-cd backend
-docker-compose -f docker-compose.test.yml up -d  
-pytest    
-```
-
-#Important note
-
-Running the ingestion script multiple times:
-
-```bash
-python3 eve_ingestor.py
-```
-
-will insert duplicate alerts into the database.
+Do not commit the MaxMind database or download credentials. Follow
+[`documentation/GEOIP_SETUP.md`](documentation/GEOIP_SETUP.md), keep the file
+current, and set `GEOIP_DB_PATH` when it is stored outside `geoip/`.
