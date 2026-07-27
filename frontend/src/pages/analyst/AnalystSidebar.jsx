@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import "./analyst.css";
-import { useTheme } from "../../contexts/ThemeContext";
 
 const readUser = () => JSON.parse(localStorage.getItem("user") || "{}");
 

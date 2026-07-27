@@ -5,6 +5,7 @@ import os
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
 from datetime import datetime, timedelta
+from bson import ObjectId
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -213,22 +214,50 @@ class TestAuthLogin:
             data = response.json()
             assert data["force_password_change"] is True
 
+    def test_login_rejects_inactive_account(self, client):
+        password = "ValidPass123!"
+        with patch('services.auth_service.get_user_by_email') as mock_get_user:
+            mock_get_user.return_value = {
+                "_id": ObjectId(),
+                "email": "pending@example.com",
+                "hashed_password": hash_password(password),
+                "full_name": "Pending User",
+                "role": "Security Analyst",
+                "status": "pending",
+            }
+            response = client.post(
+                "/api/auth/login",
+                json={"email": "pending@example.com", "password": password},
+            )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Account is not active"
+
 
 class TestUserManagement:
     """Tests for admin user management endpoints."""
 
     def test_get_all_users_non_admin(self, client):
         """Test non-admin cannot get all users."""
+        user_id = str(ObjectId())
         token = create_access_token({
             "sub": "analyst@example.com",
-            "user_id": "analyst_123",
+            "user_id": user_id,
             "role": "Security Analyst"
         })
 
-        response = client.get(
-            "/api/users",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        with patch("database.db") as mock_db:
+            mock_db.__getitem__.return_value.find_one = AsyncMock(
+                return_value={
+                    "status": "active",
+                    "role": "Security Analyst",
+                    "token_version": 0,
+                }
+            )
+            response = client.get(
+                "/api/users",
+                headers={"Authorization": f"Bearer {token}"}
+            )
 
         assert response.status_code == 403
 
@@ -238,10 +267,19 @@ class TestLogout:
 
     def test_logout_success(self, client):
         """Test successful logout."""
-        token = create_access_token({"sub": "user@example.com", "user_id": "user_123"})
+        user_id = str(ObjectId())
+        token = create_access_token({"sub": "user@example.com", "user_id": user_id})
 
-        with patch('database.db') as mock_db:
+        with patch('database.db') as mock_db, patch('routes.auth.db') as route_db:
+            mock_db.__getitem__.return_value.find_one = AsyncMock(
+                return_value={
+                    "status": "active",
+                    "role": "Security Analyst",
+                    "token_version": 0,
+                }
+            )
             mock_db.__getitem__.return_value.update_one = AsyncMock()
+            route_db.__getitem__.return_value.update_one = AsyncMock()
 
             response = client.post(
                 "/api/auth/logout",
@@ -251,5 +289,3 @@ class TestLogout:
             assert response.status_code == 200
             assert response.json()["ok"] is True
             assert "Logged out successfully" in response.json()["message"]
-
-

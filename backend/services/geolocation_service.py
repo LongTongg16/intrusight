@@ -13,12 +13,10 @@ def get_geoip_reader():
     global _reader
     if _reader is None:
         if not os.path.exists(GEOIP_DB_PATH):
-            print(f"Warning: GeoIP database not found at {GEOIP_DB_PATH}")
             return None
         try:
             _reader = geoip2.database.Reader(GEOIP_DB_PATH)
-        except Exception as e:
-            print(f"Error loading GeoIP database: {e}")
+        except Exception:
             return None
     return _reader
 
@@ -66,8 +64,7 @@ def get_location_from_ip(ip_address: str) -> Optional[Dict]:
     except geoip2.errors.AddressNotFoundError:
         # IP address not in database (e.g., private networks)
         return None
-    except Exception as e:
-        print(f"Error looking up IP {ip_address}: {e}")
+    except Exception:
         return None
 
 

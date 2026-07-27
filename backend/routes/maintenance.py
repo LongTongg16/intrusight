@@ -14,30 +14,31 @@ Endpoints:
 import os
 import json
 import gzip
-import shutil
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Security
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Query, Security
 from pydantic import BaseModel
 
 from database import db
-from routes.auth import get_current_user
+from core.security import get_current_user
 
 router = APIRouter(tags=["Maintenance"])
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BACKUP_DIR = Path(os.getenv("BACKUP_DIR", "./backups"))
+BACKUP_DIR = Path(
+    os.getenv("BACKUP_DIR", str(Path(__file__).resolve().parents[1] / "backups"))
+).resolve()
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+BACKUP_FILENAME = re.compile(r"^backup_\d{8}_\d{6}\.json\.gz$")
 
 COLLECTIONS = ["users", "logs", "alerts"]
 
 # In-memory maintenance log (persisted to DB as well)
 async def write_maintenance_log(action: str, detail: str, status: str = "success"):
     entry = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "action":    action,
         "detail":    detail,
         "status":    status,
@@ -56,7 +57,13 @@ class RestoreRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def get_timestamp():
-    return datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+
+def get_backup_path(filename: str) -> Path:
+    if not BACKUP_FILENAME.fullmatch(filename):
+        raise HTTPException(status_code=400, detail="Invalid backup filename")
+    return BACKUP_DIR / filename
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -94,7 +101,7 @@ async def get_health(current_user: dict = Security(get_current_user)):
         "collections":    stats,
         "backup_count":   len(backups),
         "latest_backup":  backups[0].name if backups else None,
-        "checked_at":     datetime.utcnow().isoformat(),
+        "checked_at":     datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -157,12 +164,12 @@ async def create_backup(current_user: dict = Security(get_current_user)):
             "filename":  filename,
             "documents": doc_count,
             "size_kb":   size_kb,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    except Exception as e:
-        await write_maintenance_log("backup", f"Backup failed: {str(e)}", "error")
-        raise HTTPException(status_code=500, detail=f"Backup failed: {str(e)}")
+    except Exception as exc:
+        await write_maintenance_log("backup", f"Backup failed ({type(exc).__name__})", "error")
+        raise HTTPException(status_code=500, detail="Backup failed") from exc
 
 
 @router.get("/api/maintenance/backups")
@@ -197,7 +204,7 @@ async def restore_backup(
     if current_user.get("role") != "Administrator":
         raise HTTPException(status_code=403, detail="Administrators only")
 
-    filepath = BACKUP_DIR / body.filename
+    filepath = get_backup_path(body.filename)
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="Backup file not found")
 
@@ -223,12 +230,12 @@ async def restore_backup(
             "filename":        body.filename,
             "restored_counts": restored_counts,
             "note":            "Data restored to restore_test_* collections. Live data was not affected.",
-            "restored_at":     datetime.utcnow().isoformat(),
+            "restored_at":     datetime.now(timezone.utc).isoformat(),
         }
 
-    except Exception as e:
-        await write_maintenance_log("restore", f"Restore failed: {str(e)}", "error")
-        raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")
+    except Exception as exc:
+        await write_maintenance_log("restore", f"Restore failed ({type(exc).__name__})", "error")
+        raise HTTPException(status_code=500, detail="Restore failed") from exc
 
 
 @router.delete("/api/maintenance/alerts/old")
@@ -243,7 +250,7 @@ async def purge_old_alerts(
     if body.days < 1:
         raise HTTPException(status_code=400, detail="days must be at least 1")
 
-    cutoff = (datetime.utcnow() - timedelta(days=body.days)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=body.days)).isoformat()
 
     try:
         result = await db["alerts"].delete_many({"created_at": {"$lt": cutoff}})
@@ -261,14 +268,14 @@ async def purge_old_alerts(
             "days":    body.days,
         }
 
-    except Exception as e:
-        await write_maintenance_log("purge", f"Purge failed: {str(e)}", "error")
-        raise HTTPException(status_code=500, detail=f"Purge failed: {str(e)}")
+    except Exception as exc:
+        await write_maintenance_log("purge", f"Purge failed ({type(exc).__name__})", "error")
+        raise HTTPException(status_code=500, detail="Alert purge failed") from exc
 
 
 @router.get("/api/maintenance/logs")
 async def get_maintenance_logs(
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200),
     current_user: dict = Security(get_current_user)
 ):
     """Return recent maintenance activity logs."""

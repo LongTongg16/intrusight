@@ -6,6 +6,8 @@ def validate_password_strength(password: str) -> None:
     # Validate password meets complexity requirements
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters long")
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Password must not exceed 72 UTF-8 bytes")
     
     if not re.search(r'[a-z]', password):
         raise ValueError("Password must contain at least one lowercase letter")
@@ -31,13 +33,12 @@ def validate_full_name(full_name: str) -> None:
         raise ValueError("Full name can only contain letters, spaces, hyphens, and apostrophes")
 
 async def get_user_by_email(email: str):
-    email = email.strip()
+    email = email.strip().lower()
     user = await db.users.find_one({"email": email})
     return user
 
 async def create_user(email: str, password: str, full_name: str, role: str):
-    email = email.strip()
-    password = password.strip()
+    email = email.strip().lower()
     full_name = full_name.strip()
     role = role.strip()
     
@@ -61,7 +62,8 @@ async def create_user(email: str, password: str, full_name: str, role: str):
         "hashed_password": hashed_password,
         "full_name": full_name,
         "role": role,
-        "status": "pending"
+        "status": "pending",
+        "token_version": 0,
     }
     result = await db.users.insert_one(user_doc)
     
@@ -96,7 +98,11 @@ async def get_all_users():
 
 async def get_users_with_telegram_id():
     users = []
-    async for user in db.users.find({"telegram_id": {"$exists": True, "$ne": None, "$ne": ""}}):
+    query = {
+        "status": "active",
+        "telegram_id": {"$exists": True, "$nin": [None, ""]},
+    }
+    async for user in db.users.find(query):
         users.append({
             "id": str(user["_id"]),
             "email": user["email"],
@@ -133,8 +139,9 @@ async def update_user_profile(user_id: str, full_name: str, telegram_id: str):
 
         return result
 
-    except Exception as e:
-        print("Update error:", e)
+    except ValueError:
+        raise
+    except Exception:
         return None
 
 async def change_password(user_id: str, old_password: str, new_password: str):
@@ -152,7 +159,10 @@ async def change_password(user_id: str, old_password: str, new_password: str):
         
         result = await db.users.find_one_and_update(
             {"_id": ObjectId(user_id)},
-            {"$set": {"hashed_password": new_hashed}},
+            {
+                "$set": {"hashed_password": new_hashed},
+                "$inc": {"token_version": 1},
+            },
             return_document=True
         )
         return result

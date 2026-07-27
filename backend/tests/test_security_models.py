@@ -202,8 +202,8 @@ class TestUserModel:
         with pytest.raises(ValidationError):
             UserIn(**user_data)
 
-    def test_user_in_strips_whitespace(self):
-        """Test UserIn strips whitespace from fields."""
+    def test_user_in_preserves_password_whitespace(self):
+        """Password whitespace is significant and must not be silently changed."""
         user_data = {
             "email": "  test@example.com  ",
             "password": "  ValidPass123!  ",
@@ -214,7 +214,7 @@ class TestUserModel:
         user = UserIn(**user_data)
 
         assert user.email == "test@example.com"
-        assert user.password == "ValidPass123!"
+        assert user.password == "  ValidPass123!  "
         assert user.full_name == "Test User"
 
     def test_user_in_with_telegram(self):
@@ -376,8 +376,8 @@ class TestChangePasswordModel:
         with pytest.raises(ValidationError):
             ChangePasswordIn(**password_data)
 
-    def test_change_password_strips_whitespace(self):
-        """Test ChangePasswordIn strips whitespace."""
+    def test_change_password_preserves_whitespace(self):
+        """Password-change inputs preserve significant whitespace."""
         password_data = {
             "current_password": "  OldPass123!  ",
             "new_password": "  NewPass456!  "
@@ -385,8 +385,8 @@ class TestChangePasswordModel:
 
         password = ChangePasswordIn(**password_data)
 
-        assert password.current_password == "OldPass123!"
-        assert password.new_password == "NewPass456!"
+        assert password.current_password == "  OldPass123!  "
+        assert password.new_password == "  NewPass456!  "
 
 
 class TestRoleEnum:
@@ -410,8 +410,8 @@ class TestRoleEnum:
 
         assert user.role == RoleEnum.ANALYST
 
-    def test_user_with_admin_role(self):
-        """Test UserIn with admin role."""
+    def test_public_user_cannot_request_admin_role(self):
+        """Public registration cannot request an administrator role."""
         user_data = {
             "email": "admin@example.com",
             "password": "ValidPass123!",
@@ -419,9 +419,8 @@ class TestRoleEnum:
             "role": RoleEnum.ADMIN
         }
 
-        user = UserIn(**user_data)
-
-        assert user.role == RoleEnum.ADMIN
+        with pytest.raises(ValidationError):
+            UserIn(**user_data)
 
 
 class TestUserListOut:

@@ -294,6 +294,12 @@ class TestGetUsersWithTelegram:
 
             assert len(result) == 2
             assert result[0]["telegram_id"] == "123456"
+            mock_db.users.find.assert_called_once_with(
+                {
+                    "status": "active",
+                    "telegram_id": {"$exists": True, "$nin": [None, ""]},
+                }
+            )
 
 
 class TestUpdateUserProfile:

@@ -12,7 +12,7 @@ import AnalystSidebar from './AnalystSidebar';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
-  "https://network-intrusion-detection-system-fyp.onrender.com";
+  "http://localhost:8000";
 
 const SEV_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
 
@@ -200,7 +200,7 @@ const Dashboard = () => {
       const data = await res.json();
       setAlerts(data.items || []);
       setBackendStatus(`✅ Connected — ${data.items?.length ?? 0} alert(s) loaded`);
-    } catch (err) {
+    } catch {
       setBackendStatus("⚠️ Backend offline — showing no live data");
       setAlerts([]);
     } finally {
@@ -233,8 +233,6 @@ const Dashboard = () => {
       return;
     }
 
-    const message = `🚨 IDS ALERT\n\nType: ${alertData.signature}\nSource: ${alertData.src_ip}\nDestination: ${alertData.dest_ip}\nSeverity: ${alertData.severity_label}\nIDS: ${alertData.proto}\nTime: ${alertData.timestamp ? new Date(alertData.timestamp).toLocaleString() : '—'}`;
-
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/alerts/send-telegram`, {
@@ -243,10 +241,7 @@ const Dashboard = () => {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          chat_id: telegramId,
-          text: message
-        })
+        body: JSON.stringify({ alert_id: alertData.id })
       });
 
       const data = await res.json();

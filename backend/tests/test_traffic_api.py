@@ -3,7 +3,7 @@ import pytest
 import sys
 import os
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from datetime import datetime
 from bson import ObjectId
 
@@ -16,7 +16,17 @@ from core.security import create_access_token
 @pytest.fixture
 def client():
     """Provide TestClient for API testing."""
-    return TestClient(app)
+    with patch("routes.traffic.get_collection", return_value=None), patch(
+        "database.db"
+    ) as mock_db:
+        mock_db.__getitem__.return_value.find_one = AsyncMock(
+            return_value={
+                "status": "active",
+                "role": "Security Analyst",
+                "token_version": 0,
+            }
+        )
+        yield TestClient(app)
 
 
 @pytest.fixture
@@ -24,7 +34,7 @@ def analyst_token():
     """Create analyst token."""
     return create_access_token({
         "sub": "analyst@example.com",
-        "user_id": "analyst_123",
+        "user_id": str(ObjectId()),
         "role": "Security Analyst"
     })
 

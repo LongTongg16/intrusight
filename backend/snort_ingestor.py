@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SNORT_PATH = os.getenv("ALERTS_FILE_PATH", "/opt/homebrew/var/log/snort/alert_json.txt")
-API_URL = os.getenv("API_URL", "https://network-intrusion-detection-system-fyp.onrender.com/api/ingest/alerts")
+API_URL = os.getenv("API_URL", "http://localhost:8000/api/ingest/alerts")
+INGEST_API_KEY = os.getenv("INGEST_API_KEY")
 
 SEVERITY_THRESHOLD = int(os.getenv("SEVERITY_THRESHOLD", "2"))
 SEVERITY_LABELS = {1: "high", 2: "medium", 3: "low"}
@@ -51,11 +52,18 @@ def build_payload(event: dict) -> dict:
     }
 
 def send_alert(payload: dict) -> bool:
+    if not INGEST_API_KEY:
+        return False
     try:
-        response = requests.post(API_URL, json=payload, timeout=15)
+        response = requests.post(
+            API_URL,
+            json=payload,
+            headers={"X-Ingest-API-Key": INGEST_API_KEY},
+            timeout=15,
+        )
         if response.status_code in (200, 201):
             return True
-        print(f"\nFailed: {response.status_code} - {response.text}")
+        print(f"\nAlert ingestion failed with HTTP {response.status_code}")
         return False
     except requests.RequestException as e:
         print(f"\nRequest error: {e}")
@@ -90,6 +98,9 @@ def process_line(line: str) -> str:
     return "sent"
 
 def main():
+    if not INGEST_API_KEY:
+        raise SystemExit("INGEST_API_KEY must be set")
+
     sent = 0
     skipped = 0
     telegram_alerts = 0

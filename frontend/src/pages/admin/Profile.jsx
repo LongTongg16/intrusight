@@ -4,7 +4,7 @@ import "./admin.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ??
-  "https://network-intrusion-detection-system-fyp.onrender.com";
+  "http://localhost:8000";
 
 function getPasswordStrength(password) {
   if (!password) return null;

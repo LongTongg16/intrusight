@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { useTheme } from "../../contexts/ThemeContext";
 import './admin.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "https://network-intrusion-detection-system-fyp.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 const getAuthHeader = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
 });
 
 function DatabaseMaintenance() {
-  const { theme } = useTheme();
-
   const [health, setHealth] = useState(null);
   const [stats, setStats] = useState(null);
   const [backups, setBackups] = useState([]);

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import './analyst.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "https://network-intrusion-detection-system-fyp.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 function Notifications() {
   const navigate = useNavigate();
@@ -40,7 +40,7 @@ function Notifications() {
       }));
 
       setItems(mapped);
-    } catch (err) {
+    } catch {
       setError("Failed to load notifications.");
     } finally {
       setLoading(false);

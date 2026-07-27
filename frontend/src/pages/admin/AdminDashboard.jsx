@@ -14,7 +14,7 @@ const styles = {
   td: { padding: "16px 24px", fontSize: "0.85rem" }
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "https://network-intrusion-detection-system-fyp.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 const getAuthHeader = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -122,7 +122,6 @@ function AdminDashboard({ logs: logsProp = [], onRefreshLogs }) {
     } catch { return iso; }
   };
 
-  const totalPages  = Math.ceil(sortedAlerts.length / PAGE_SIZE);
   const pagedAlerts = sortedAlerts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (

@@ -5,10 +5,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-KISMET_API_KEY = os.getenv("KISMET_API_KEY", "6D0B4FAB8A6C1B687D8B2B6E3A07F05D")
-KISMET_URL = "http://localhost:2501/alerts/last-time/{}/alerts.json"
+KISMET_API_KEY = os.getenv("KISMET_API_KEY")
+KISMET_URL = os.getenv(
+    "KISMET_URL",
+    "http://localhost:2501/alerts/last-time/{}/alerts.json",
+)
 
-API_URL = os.getenv("API_URL", "https://network-intrusion-detection-system-fyp.onrender.com/api/ingest/alerts")
+API_URL = os.getenv("API_URL", "http://localhost:8000/api/ingest/alerts")
+INGEST_API_KEY = os.getenv("INGEST_API_KEY")
 SEVERITY_THRESHOLD = int(os.getenv("SEVERITY_THRESHOLD", "2"))
 SEVERITY_LABELS = {1: "high", 2: "medium", 3: "low"}
 
@@ -36,15 +40,27 @@ def build_payload(alert: dict) -> dict:
     }
 
 def send_alert(payload: dict) -> bool:
+    if not INGEST_API_KEY:
+        return False
     try:
-        response = requests.post(API_URL, json=payload, timeout=15)
+        response = requests.post(
+            API_URL,
+            json=payload,
+            headers={"X-Ingest-API-Key": INGEST_API_KEY},
+            timeout=15,
+        )
         return response.status_code in (200, 201)
     except requests.RequestException:
         return False
 
 def main():
+    if not KISMET_API_KEY:
+        raise SystemExit("KISMET_API_KEY must be set")
+    if not INGEST_API_KEY:
+        raise SystemExit("INGEST_API_KEY must be set")
+
     print("Ingestor Mode: KISMET")
-    print(f"Polling API: http://localhost:2501")
+    print("Polling configured Kismet API")
     print(f"API endpoint: {API_URL}")
     print("-" * 50)
 

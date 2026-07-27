@@ -133,11 +133,12 @@ function ForcePasswordChange() {
     setLoading(true);
     try {
       // Uses the force-change-password endpoint — no current password required
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE}/api/users/force-change-password`,
         { new_password: newPassword },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      localStorage.setItem("token", response.data.token);
 
       // Clear the flag from localStorage
       const stored = JSON.parse(localStorage.getItem("user") || "{}");

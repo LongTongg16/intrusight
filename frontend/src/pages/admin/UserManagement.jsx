@@ -3,7 +3,7 @@ import axios from "axios";
 import { styles } from "./UserManagement.styles";
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_BASE ?? "https://network-intrusion-detection-system-fyp.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 const getId = (user) => user._id || user.id;
 
@@ -63,7 +63,7 @@ function PasswordStrength({ password }) {
 }
 
 // ── Hamburger Menu Component ──────────────────────────────────
-function ActionMenu({ user, isSelf, onApprove, onReject, onSuspend, onActivate, onEdit, onResetPassword }) {
+function ActionMenu({ user, isSelf, onApprove, onReject, onSuspend, onActivate, onEdit }) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const ref = useRef(null);
@@ -94,7 +94,6 @@ function ActionMenu({ user, isSelf, onApprove, onReject, onSuspend, onActivate, 
     items.push({ label: "✕ Reject",  action: onReject,  color: "#ef4444" });
   } else if (user.status === "active") {
     items.push({ label: "Edit", action: onEdit });
-    items.push({ label: "Reset Password", action: onResetPassword });
     if (!isSelf) items.push({ label: "Suspend", action: onSuspend });
   } else if (!isSelf && (user.status === "suspended" || user.status === "rejected")) {
     items.push({ label: "Reactivate", action: onActivate });
@@ -165,11 +164,6 @@ function UserManagement() {
   const [isAddSubmitting, setIsAddSubmitting]   = useState(false);
 
   const [confirmModal, setConfirmModal] = useState(null);
-
-  const [resetPwdTarget, setResetPwdTarget]       = useState(null);
-  const [newPassword, setNewPassword]             = useState("");
-  const [confirmPassword, setConfirmPassword]     = useState("");
-  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
 
   const [toast, setToast] = useState(null);
 
@@ -268,24 +262,8 @@ function UserManagement() {
     }
   };
 
-  const handleAdminResetPassword = async () => {
-    if (!newPassword) { showToast("New password is required", "error"); return; }
-    if (newPassword !== confirmPassword) { showToast("Passwords do not match", "error"); return; }
-    setIsResetSubmitting(true);
-    try {
-      await axios.post(`${API_BASE}/api/users/${getId(resetPwdTarget)}/reset-password`, { new_password: newPassword }, getAuthHeader());
-      showToast("Password reset successfully");
-      closeResetPwdModal();
-    } catch (err) {
-      showToast(err.response?.data?.detail || "Error resetting password", "error");
-    } finally {
-      setIsResetSubmitting(false);
-    }
-  };
-
   const closeEditModal = () => { setEditingUser(null); setEditForm({ full_name: "", role: "", isSelf: false }); };
   const closeAddModal = () => { setShowAddModal(false); setAddForm({ full_name: "", email: "", role: "Security Analyst", password: "" }); };
-  const closeResetPwdModal = () => { setResetPwdTarget(null); setNewPassword(""); setConfirmPassword(""); };
   const openConfirm = (message, onConfirm) => setConfirmModal({ message, onConfirm });
 
   const tabStyle = (id) => ({
@@ -391,7 +369,6 @@ function UserManagement() {
                             setEditingUser(user);
                             setEditForm({ full_name: user.full_name, role: user.role, isSelf: getId(user) === currentAdminId });
                           }}
-                          onResetPassword={() => setResetPwdTarget(user)}
                         />
                       </td>
                     </tr>

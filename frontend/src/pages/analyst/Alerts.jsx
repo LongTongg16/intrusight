@@ -5,7 +5,7 @@ import { refreshAllLocations } from "../../services/api";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
-  "https://network-intrusion-detection-system-fyp.onrender.com";
+  "http://localhost:8000";
 
 const Alerts = () => {
   const navigate = useNavigate();

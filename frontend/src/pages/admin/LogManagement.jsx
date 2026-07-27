@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import "./admin.css";
 import { styles } from './LogManagement.styles';
 
-const BASE = import.meta.env.VITE_API_BASE ?? 'https://network-intrusion-detection-system-fyp.onrender.com';
+const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 // ── IDS tool configurations ───────────────────────────────────────────────────
 const IDS_CONFIGS = {

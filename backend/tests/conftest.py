@@ -9,6 +9,16 @@ if os.path.exists(".env.test"):
 else:
     load_dotenv(".env")
 
+# Test-only defaults. Production startup rejects missing or placeholder secrets.
+os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
+os.environ.setdefault(
+    "SECRET_KEY",
+    "test-only-secret-key-00000000000000000000000000000000",
+)
+os.environ.setdefault(
+    "INGEST_API_KEY",
+    "test-only-ingest-key-000000000000000000000000000000",
+)
 
 @pytest.fixture(scope="module")
 async def mongodb_client():

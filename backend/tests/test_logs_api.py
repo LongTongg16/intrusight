@@ -3,6 +3,8 @@ import pytest
 import sys
 import os
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, patch
+from bson import ObjectId
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -13,7 +15,15 @@ from core.security import create_access_token
 @pytest.fixture
 def client():
     """Provide TestClient for API testing."""
-    return TestClient(app)
+    with patch("database.db") as mock_db:
+        mock_db.__getitem__.return_value.find_one = AsyncMock(
+            return_value={
+                "status": "active",
+                "role": "Security Analyst",
+                "token_version": 0,
+            }
+        )
+        yield TestClient(app)
 
 
 @pytest.fixture
@@ -21,7 +31,7 @@ def analyst_token():
     """Create analyst token."""
     return create_access_token({
         "sub": "analyst@example.com",
-        "user_id": "analyst_123",
+        "user_id": str(ObjectId()),
         "role": "Security Analyst"
     })
 
@@ -31,7 +41,7 @@ def admin_token():
     """Create admin token."""
     return create_access_token({
         "sub": "admin@example.com",
-        "user_id": "admin_123",
+        "user_id": str(ObjectId()),
         "role": "Administrator"
     })
 
@@ -76,5 +86,3 @@ class TestCreateLog:
         )
 
         assert response.status_code == 401
-
-

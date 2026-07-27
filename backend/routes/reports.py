@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Security
@@ -52,6 +52,6 @@ def save_report_history(
     user_id = current_user.get("user_id") or current_user.get("sub")
     doc = entry.model_dump()
     doc["user_id"] = user_id
-    doc["savedAt"] = datetime.utcnow().isoformat()
+    doc["savedAt"] = datetime.now(timezone.utc).isoformat()
     col.insert_one(doc)
     return {"ok": True}
