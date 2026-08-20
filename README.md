@@ -1,208 +1,400 @@
 # IntruSight
 
-## Multi-Engine Network Intrusion Detection and Alert Management Platform
+## Multi-Engine Network Intrusion Detection & Alert Management Platform
 
-IntruSight is a full-stack dashboard for collecting, normalizing, reviewing, and
-managing alerts from multiple network intrusion detection systems. It combines a
-FastAPI API, MongoDB persistence, Python ingestion workers, and a React dashboard
-with role-aware analyst and administrator workflows.
+IntruSight is a full-stack cybersecurity platform for **collecting, normalizing, reviewing, and managing alerts from multiple network intrusion detection systems**.
 
-> This was developed as a seven-member final-year university team project. This
-> repository preserves the original contributors and Git history and must not be
-> interpreted as a solo project.
+It integrates **Suricata, Snort, Zeek, and Kismet** through dedicated Python ingestion workers, transforms engine-specific events into a shared alert model, stores them in MongoDB through a FastAPI backend, and presents them through a React dashboard for analyst and administrator workflows.
 
-![IntruSight dashboard](frontend/public/DashboardDemo.png)
+> **Project context:** IntruSight was developed as a seven-member final-year university team project. This repository preserves the original contributors and Git history and should not be interpreted as a solo project.
 
-Additional deployment screenshots and a narrated demo can be added here when a
-stable public demo environment is available.
+![IntruSight Dashboard](frontend/public/DashboardDemo.png)
 
-## Project context
+---
 
-The project explored a simpler operational view over alerts produced by
-Suricata, Snort, Zeek, and Kismet. The application does not capture packets or
-replace an IDS engine: those engines produce events, and IntruSight ingests and
-normalizes selected alert fields for investigation.
+## What Problem Does IntruSight Solve?
 
-The team tested custom Suricata and Snort rules as part of the alert pipeline.
-IntruSight is not a rule-authoring or rule-distribution system.
+Network monitoring environments often rely on multiple security tools.
 
-## Key features
+Each tool produces different event formats, fields, severity values, and alert structures. This makes it harder to create a consistent workflow for reviewing security events.
 
-- Multi-engine alert ingestion with a shared normalized alert model
-- Severity mapping, alert filtering, status tracking, notes, and geolocation
-- Analyst dashboards, traffic views, reports, threat maps, and Telegram delivery
-- Administrator workflows for account approval, log sources, and database maintenance
-- Bcrypt password hashing, expiring JWTs, active-account checks, and server-side session invalidation
-- API-key authentication dedicated to machine-to-machine alert ingestion
-- Simulators for development where an IDS engine, wireless interface, or lab traffic is unavailable
+IntruSight explores how alerts from different network-security engines can be transformed into a **shared operational view**.
 
-## Architecture
+It integrates:
+
+- **Suricata** — network intrusion detection and prevention
+- **Snort** — signature-based intrusion detection
+- **Zeek** — network security monitoring and event analysis
+- **Kismet** — wireless network monitoring and detection
+
+IntruSight does **not** replace these engines or capture packets itself.
+
+Instead, the IDS engines generate the security telemetry, while IntruSight acts as the aggregation, normalization, storage, and investigation layer.
+
+---
+
+# Key Features
+
+## Multi-Engine Alert Ingestion
+
+IntruSight includes dedicated Python ingestors for:
+
+- Suricata EVE JSON
+- Snort JSON alerts
+- Zeek notice logs
+- Kismet Alerts API
+
+Each ingestor extracts selected security fields and converts the engine-specific event into a shared structure that the backend can process consistently.
+
+---
+
+## Alert Normalization
+
+Different security engines describe events differently.
+
+The ingestion layer normalizes selected information including:
+
+- source address
+- destination address
+- network identifiers
+- alert signature
+- category
+- severity
+- originating security engine
+
+This means events from several detection technologies can move through the same investigation workflow.
+
+---
+
+## Centralized Security Dashboard
+
+The React dashboard provides analysts with a single interface for reviewing collected security events.
+
+Supported workflows include:
+
+- alert review
+- filtering
+- alert-detail inspection
+- status tracking
+- investigation notes
+- traffic views
+- reports
+- geographic threat visualization
+- Telegram alert delivery
+
+---
+
+## Role-Aware Workflows
+
+IntruSight separates analyst and administrator functionality.
+
+### Analyst
+
+Analysts can work with:
+
+- alerts
+- filters
+- investigation notes
+- alert status
+- dashboards
+- reports
+- traffic views
+- threat maps
+
+### Administrator
+
+Administrators can manage:
+
+- user approval
+- account state
+- log sources
+- database maintenance
+
+---
+
+## Authentication & Access Control
+
+The application includes:
+
+- bcrypt password hashing
+- signed JWT bearer tokens
+- token expiration
+- active-account validation
+- role-aware authorization
+- server-side session invalidation
+- dedicated API-key authentication for machine-to-machine ingestion
+
+Human users and IDS ingestion workers therefore use separate authentication mechanisms.
+
+---
+
+# Architecture
 
 ```mermaid
 flowchart LR
-    S[Suricata EVE JSON] --> SI[Suricata ingestor]
-    N[Snort JSON alerts] --> NI[Snort ingestor]
-    Z[Zeek notice log] --> ZI[Zeek ingestor]
-    K[Kismet alerts API] --> KI[Kismet ingestor]
-    SI & NI & ZI & KI -->|X-Ingest-API-Key| API[FastAPI API]
+    S[Suricata<br/>EVE JSON] --> SI[Suricata Ingestor]
+    N[Snort<br/>JSON Alerts] --> NI[Snort Ingestor]
+    Z[Zeek<br/>Notice Logs] --> ZI[Zeek Ingestor]
+    K[Kismet<br/>Alerts API] --> KI[Kismet Ingestor]
+
+    SI -->|X-Ingest-API-Key| API
+    NI -->|X-Ingest-API-Key| API
+    ZI -->|X-Ingest-API-Key| API
+    KI -->|X-Ingest-API-Key| API
+
+    API[FastAPI API]
+
     API --> DB[(MongoDB)]
     API --> TG[Telegram Bot API]
-    UI[React / Vite dashboard] -->|Bearer JWT| API
+
+    UI[React / Vite Dashboard] -->|Bearer JWT| API
 ```
 
-The API currently uses Motor for asynchronous account and maintenance workflows
-and PyMongo for the synchronous alert collection.
+The backend currently uses:
 
-## Supported IDS engines
+- **Motor** for asynchronous account and maintenance workflows
+- **PyMongo** for the synchronous alert collection
+
+---
+
+# Alert Data Flow
+
+```text
+IDS / Network Monitor
+        ↓
+Engine-Specific Security Event
+        ↓
+Python Ingestor
+        ↓
+Field Extraction
+        ↓
+Normalization
+        ↓
+Authenticated Ingestion Request
+        ↓
+FastAPI
+        ↓
+Validation
+        ↓
+MongoDB
+        ↓
+Analyst Dashboard
+```
+
+In practice:
+
+1. An IDS engine or simulator produces an event.
+2. Its Python ingestor extracts relevant fields.
+3. Engine-specific values are normalized.
+4. The ingestor sends the result to `/api/ingest/alerts` using `X-Ingest-API-Key`.
+5. FastAPI validates and stores the alert.
+6. IP addresses can optionally be enriched using GeoLite2.
+7. Medium- and high-severity alerts can trigger Telegram notifications.
+8. Authenticated analysts can retrieve, filter, annotate, and update the alerts.
+
+---
+
+# Supported Detection Engines
 
 | Engine | Input | Integration |
 | --- | --- | --- |
 | Suricata | EVE JSON alert events | `backend/eve_ingestor.py` |
 | Snort | JSON alert output | `backend/snort_ingestor.py` |
 | Zeek | JSON notice records | `backend/zeek_ingestor.py` |
-| Kismet | Kismet alerts HTTP API | `backend/kismet_ingestor.py` |
+| Kismet | Kismet Alerts API | `backend/kismet_ingestor.py` |
 
-Suricata, Snort, Zeek, and Kismet development simulators are included in
-`backend/`. They generate synthetic lab data and are not substitutes for
-production sensors.
+Development simulators for all four engines are also included under `backend/`.
 
-## Technology stack
+These generate synthetic lab data when:
 
-- Backend: Python, FastAPI, Pydantic, Uvicorn
-- Data: MongoDB, Motor, PyMongo
-- Security: bcrypt, signed JWT bearer tokens, ingestion API keys
-- Frontend: React, Vite, React Router, Axios, Recharts, Leaflet
-- Integrations: Telegram Bot API, MaxMind GeoLite2 City
-- Testing: pytest, pytest-asyncio, FastAPI TestClient, ESLint, Vite build
+- an IDS engine is unavailable
+- a compatible wireless interface is unavailable
+- suitable attack traffic is unavailable
+- reproducible development data is required
 
-## Alert data flow
+Simulator output is test data and should **not** be represented as real captured attacks.
 
-1. An IDS engine or simulator emits an engine-specific event.
-2. Its Python ingestor extracts network identifiers, signature, category, and severity.
-3. The ingestor posts the normalized payload to `/api/ingest/alerts` with a dedicated key.
-4. FastAPI validates and stores the alert, then optionally enriches IPs with GeoLite2 data.
-5. High- and medium-severity events can trigger Telegram notifications.
-6. Authenticated analysts retrieve, filter, annotate, and update alerts in the dashboard.
+---
 
-## Setup requirements
+# Technology Stack
 
-- Python 3.12 or newer
-- Node.js 22 or newer and npm
-- MongoDB 8.x, either local or remote
-- Optional: Docker Compose for the included local MongoDB service
-- Optional: a current GeoLite2 City database and Telegram/Kismet credentials
+### Backend
 
-## Backend setup
+- Python
+- FastAPI
+- Pydantic
+- Uvicorn
 
-From the repository root:
+### Data
 
-```bash
-python3 -m venv backend/.venv
-source backend/.venv/bin/activate
-python -m pip install -r backend/requirements.txt
-cp .env.example backend/.env
-```
+- MongoDB
+- Motor
+- PyMongo
 
-Generate independent values for `SECRET_KEY` and `INGEST_API_KEY`:
+### Frontend
 
-```bash
-openssl rand -hex 32
-openssl rand -hex 32
-```
+- React
+- Vite
+- React Router
+- Axios
+- Recharts
+- Leaflet
 
-Replace the corresponding placeholders in `backend/.env`. Do not reuse either
-value for another service.
+### Security
 
-Start a local MongoDB instance if one is not already available:
+- bcrypt
+- JWT bearer authentication
+- role-aware authorization
+- ingestion API keys
 
-```bash
-docker compose -f backend/docker-compose.test.yml up -d
-```
+### Security Integrations
 
-For a fresh database, create the first administrator interactively:
+- Suricata
+- Snort
+- Zeek
+- Kismet
+- Telegram Bot API
+- MaxMind GeoLite2 City
 
-```bash
-cd backend
-python create_admin.py
-```
+### Testing
 
-The script uses a hidden password prompt so the password is not placed in shell
-history.
+- pytest
+- pytest-asyncio
+- FastAPI TestClient
+- ESLint
+- Vite production build
 
-## Frontend setup
+---
 
-```bash
-cd frontend
-cp .env.example .env
-npm ci
-npm run dev
-```
+# My Contribution
 
-The development UI is served at `http://localhost:5173`.
+IntruSight was built collaboratively by a **seven-member final-year university project team**, so I do not claim sole ownership of the platform.
 
-## Environment variables
+My preserved Git history directly supports primary contributions to the **multi-engine alert-ingestion pipeline and backend integration**.
 
-The root `.env.example` documents backend and ingestor variables. Required
-backend variables are:
+My work included:
 
-| Variable | Purpose |
-| --- | --- |
-| `MONGODB_URL` | MongoDB connection URI |
-| `DATABASE_NAME` | Shared MongoDB database name |
-| `SECRET_KEY` | JWT signing secret; at least 32 characters |
-| `INGEST_API_KEY` | Independent key accepted by the ingestion endpoint |
-| `CORS_ORIGINS` | Comma-separated browser origins |
+- designing and implementing alert-ingestion and retrieval endpoints
+- building and refining Python ingestors for **Suricata, Snort, Zeek, and Kismet**
+- extracting engine-specific security-event fields
+- normalizing event structures and severity values
+- implementing validation and ingestion error handling
+- adding filtering and alert-status handling
+- creating and refining simulators when security engines or suitable lab traffic were unavailable
+- connecting the multi-engine ingestion pipeline to the FastAPI backend
 
-Optional variables configure token expiry, Telegram, Kismet, GeoLite2, log
-locations, and the private backup directory. The frontend reads
-`VITE_API_BASE` from `frontend/.env`.
+The strongest technical challenge in this work was not simply receiving JSON.
 
-Never commit a populated `.env`, a MaxMind license key, a Telegram token, a
-Kismet key, or a production MongoDB URI.
+Each security engine exposes telemetry differently, so the ingestion layer had to translate heterogeneous security events into a common format that downstream application components could process consistently.
 
-## Running locally
+---
 
-Terminal 1:
+# What I Learned
 
-```bash
-cd backend
-source .venv/bin/activate
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
+## 1. Security Tools Do Not Share a Common Data Model
 
-Terminal 2:
+Suricata, Snort, Zeek, and Kismet expose different concepts and event structures.
 
-```bash
-cd frontend
-npm run dev
-```
+Integrating them required understanding each source independently before deciding which information could be represented consistently.
 
-Open `http://localhost:5173`. API health and interactive documentation are
-available at `http://localhost:8000/health` and `http://localhost:8000/docs`.
+This made **security telemetry normalization** one of the central engineering problems in the project.
 
-To run an ingestor, configure its input path plus `API_URL` and
-`INGEST_API_KEY`, then run the relevant script from `backend/`. For example:
+---
 
-```bash
-cd backend
-source .venv/bin/activate
-python eve_ingestor.py
-```
+## 2. Simulators Can Remove Infrastructure Bottlenecks
 
-## GeoLite2 setup
+Security development often depends on external conditions:
 
-The database is intentionally not committed. Create a MaxMind account, obtain a
-license key, and download a current `GeoLite2-City.mmdb` to
-`backend/geoip/GeoLite2-City.mmdb`, or set `GEOIP_DB_PATH` to another private
-location. See [MaxMind's GeoLite documentation](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/)
-and [update guidance](https://dev.maxmind.com/geoip/updating-databases/).
+- IDS installations
+- compatible network interfaces
+- test traffic
+- reproducible alerts
 
-MaxMind requires GeoLite users to keep databases current. Geolocation is
-approximate and must not be used to identify a household or individual.
+Developing simulators allowed us to work on the ingestion pipeline even when those dependencies were unavailable.
 
-## Testing
+It also reinforced the importance of clearly distinguishing **synthetic test data from captured security evidence**.
 
-Backend:
+---
+
+## 3. A Security Platform Must Secure Itself
+
+A system that processes security alerts can still contain serious application-security weaknesses.
+
+A later review of IntruSight identified issues involving:
+
+- authentication
+- authorization
+- secrets management
+- API access control
+- sensitive data
+- session invalidation
+- CORS
+- input handling
+- dependency hygiene
+
+That reinforced a simple but important lesson:
+
+> Building security software does not automatically make the software secure.
+
+---
+
+# Security Review & Hardening
+
+A dedicated security review was performed across:
+
+- authentication
+- authorization
+- integrations
+- configuration
+- sensitive files
+- dependencies
+- maintenance functionality
+- deployment assumptions
+
+The review identified issues including:
+
+- public administrator-role registration
+- inactive accounts receiving usable authentication tokens
+- unsafe JWT secret fallback behavior
+- unauthenticated alert operations
+- public alert ingestion
+- hardcoded integration credentials
+- sensitive database backups committed to the repository
+- inconsistent session invalidation
+- overly permissive CORS configuration
+- maintenance path traversal
+- excessive error disclosure
+- unnecessary and outdated dependencies
+
+Remediation included:
+
+- restricting public registration
+- active-account enforcement
+- stronger JWT validation
+- server-side token invalidation
+- role-aware authorization
+- dedicated ingestion API-key authentication
+- environment-based secret handling
+- stricter CORS policy
+- validated maintenance filenames
+- safer error handling
+- dependency cleanup
+
+The complete review is documented in:
+
+[`SECURITY_AUDIT.md`](SECURITY_AUDIT.md)
+
+---
+
+# Testing & Validation
+
+## Backend
+
+The documented security-remediation validation reports:
+
+**141 passing backend tests**
+
+Run the suite with:
 
 ```bash
 docker compose -f backend/docker-compose.test.yml up -d
@@ -211,7 +403,17 @@ source .venv/bin/activate
 pytest
 ```
 
-Frontend:
+A syntax/import validation was also performed:
+
+```bash
+python -m compileall -q backend
+```
+
+The backend tests cover areas including authentication, authorization, alert handling, ingestion, and application behavior.
+
+---
+
+## Frontend
 
 ```bash
 cd frontend
@@ -220,71 +422,352 @@ npm run lint
 npm run build
 ```
 
-## Deployment
+The documented validation reports successful:
 
-No deployment credentials or provider state are stored in this repository.
-For deployment:
+- ESLint checks
+- Vite production build
 
-1. provision MongoDB and set all backend environment variables in the host;
-2. restrict `CORS_ORIGINS` to the exact HTTPS frontend origin;
-3. run `uvicorn main:app` behind TLS and a production process supervisor;
-4. build `frontend/` with `VITE_API_BASE` set to the HTTPS API URL;
-5. keep backups and GeoLite data in private, persistent storage; and
-6. rotate deployment secrets independently.
+---
 
-Earlier project documentation referenced Netlify and Render deployments. Treat
-those URLs as historical unless their owners confirm they are still maintained.
+# Local Setup
 
-## Limitations
+## Requirements
 
-- No self-service email password-reset flow; administrators perform resets.
-- No built-in IDS rule editor, packet capture, or sensor lifecycle management.
-- Some network-traffic rows are explicitly seeded demo data.
-- The ingestors are single-process prototypes without durable queues or replay protection.
-- JWTs are stored in browser local storage, so frontend XSS prevention remains important.
-- Rate limiting and centralized audit logging are not yet implemented.
-- GeoLite2 enrichment is optional and approximate.
+- Python 3.12+
+- Node.js 22+
+- npm
+- MongoDB 8.x
 
-## Future improvements
+Optional:
 
-- Durable ingestion queues, idempotency keys, and sensor-specific credentials
-- Rate limiting and structured security audit events
-- Automated dependency and secret scanning
-- End-to-end browser tests and broader authorization tests
-- Secure password-reset delivery and optional multi-factor authentication
-- Production observability, backup encryption, and restore drills
+- Docker Compose
+- GeoLite2 City
+- Telegram credentials
+- Kismet credentials
 
-## Security considerations
+---
 
-The public-repository remediation removed committed credentials, account
-backups, archives, and the bundled GeoLite database. Sensitive API routes now
-require either a user JWT or the ingestion key. See
-[`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) for findings, rotations, validation
-results, and the non-destructive Git-history cleanup plan.
+## Clone the Repository
 
-This remains an educational prototype. Perform a fresh threat model and
-deployment review before using it on production network data.
+```bash
+git clone https://github.com/LongTongg16/intrusight.git
+cd intrusight
+```
 
-## Team attribution
+---
 
-IntruSight was built by a seven-member final-year university project team. The
-original Git history and contributor attribution are intentionally preserved.
-Features represented here were delivered collaboratively; repository ownership
-or hosting by one contributor does not imply sole authorship.
+## Backend
 
-## Individual contributions
+Create a virtual environment:
 
-Git history under the `LongTongg16` identity directly supports the following
-primary contributions:
+```bash
+python3 -m venv backend/.venv
+source backend/.venv/bin/activate
+```
 
-- designing and implementing alert-ingestion and retrieval endpoints;
-- building and refining Python ingestors for Suricata, Snort, Zeek, and Kismet;
-- normalizing engine-specific fields and severity values;
-- adding validation, filtering, status handling, and ingestion error handling;
-- creating and refining simulators for unavailable engines or interfaces; and
-- connecting the multi-engine alert path to the FastAPI backend.
+Install dependencies:
 
-Broader project notes mention backend migration, MongoDB Atlas, pipeline
-testing, dashboard work, and Telegram integration. Those items are not claimed
-here as individual ownership because the preserved Git history does not
-unambiguously attribute them to this contributor.
+```bash
+python -m pip install -r backend/requirements.txt
+```
+
+Create the backend environment file:
+
+```bash
+cp .env.example backend/.env
+```
+
+Generate independent values for the application JWT secret and ingestion key:
+
+```bash
+openssl rand -hex 32
+openssl rand -hex 32
+```
+
+Use separate values for:
+
+```text
+SECRET_KEY
+INGEST_API_KEY
+```
+
+Never reuse these credentials across services.
+
+---
+
+# Environment Variables
+
+Required backend variables include:
+
+| Variable | Purpose |
+| --- | --- |
+| `MONGODB_URL` | MongoDB connection URI |
+| `DATABASE_NAME` | MongoDB database name |
+| `SECRET_KEY` | JWT signing secret |
+| `INGEST_API_KEY` | Machine-to-machine ingestion key |
+| `CORS_ORIGINS` | Allowed browser origins |
+
+Optional configuration includes:
+
+- token expiry
+- Telegram integration
+- Kismet
+- GeoLite2
+- log locations
+- backup directories
+
+The frontend reads:
+
+```text
+VITE_API_BASE
+```
+
+from `frontend/.env`.
+
+Never commit:
+
+- populated `.env` files
+- Telegram tokens
+- Kismet API keys
+- MaxMind license keys
+- production MongoDB URIs
+- JWT secrets
+- ingestion keys
+
+---
+
+# MongoDB
+
+Start the included local MongoDB service:
+
+```bash
+docker compose -f backend/docker-compose.test.yml up -d
+```
+
+For a fresh database, create the first administrator:
+
+```bash
+cd backend
+python create_admin.py
+```
+
+The administrator script uses a hidden password prompt to avoid exposing the password in shell history.
+
+---
+
+# Running Locally
+
+## Backend
+
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+API documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+Health endpoint:
+
+```text
+http://localhost:8000/health
+```
+
+---
+
+## Frontend
+
+```bash
+cd frontend
+cp .env.example .env
+npm ci
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:5173
+```
+
+---
+
+# Running an Ingestor
+
+Configure the relevant event source together with:
+
+```text
+API_URL
+INGEST_API_KEY
+```
+
+Then run the appropriate ingestor.
+
+Example — Suricata:
+
+```bash
+cd backend
+source .venv/bin/activate
+python eve_ingestor.py
+```
+
+Equivalent workers are included for Snort, Zeek, and Kismet.
+
+---
+
+# GeoLite2
+
+GeoLite2 is used for optional geographic enrichment.
+
+The database itself is intentionally not committed.
+
+Download a current `GeoLite2-City.mmdb` from MaxMind and place it at:
+
+```text
+backend/geoip/GeoLite2-City.mmdb
+```
+
+Alternatively, configure:
+
+```text
+GEOIP_DB_PATH
+```
+
+See:
+
+- [MaxMind GeoLite2 documentation](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/)
+- [MaxMind database update guidance](https://dev.maxmind.com/geoip/updating-databases/)
+
+GeoIP information is approximate and should not be used to identify a household or individual.
+
+---
+
+# Current Limitations
+
+IntruSight remains an educational prototype rather than a production SOC platform.
+
+Current limitations include:
+
+- no built-in packet capture
+- no IDS rule editor
+- no sensor lifecycle management
+- single-process ingestion workers
+- no durable ingestion queue
+- no replay protection
+- shared ingestion credentials rather than per-sensor identities
+- no rate limiting
+- no centralized security audit logging
+- no self-service email password reset
+- JWT storage in browser local storage
+- optional and approximate GeoLite2 enrichment
+- some explicitly seeded demonstration traffic
+- no verified current production deployment
+
+IntruSight should therefore not be presented as:
+
+- a SIEM replacement
+- a production SOC platform
+- an IDS engine
+- a packet-capture system
+
+---
+
+# Future Improvements
+
+Potential improvements include:
+
+- durable ingestion queues
+- idempotency keys
+- replay protection
+- sensor-specific credentials
+- structured security audit logging
+- rate limiting
+- broader authorization tests
+- end-to-end browser testing
+- automated secret scanning
+- automated dependency scanning
+- multi-factor authentication
+- secure password-reset delivery
+- production observability
+- backup encryption
+- tested restore procedures
+
+---
+
+# Deployment
+
+No deployment credentials or provider state are stored in the current repository.
+
+For a future deployment:
+
+1. Provision MongoDB.
+2. Configure backend secrets through the hosting environment.
+3. Restrict `CORS_ORIGINS` to the exact HTTPS frontend origin.
+4. Run FastAPI behind TLS and a production process supervisor.
+5. Build the frontend with the correct HTTPS `VITE_API_BASE`.
+6. Keep database backups and GeoLite2 data in private persistent storage.
+7. Rotate secrets independently.
+
+Earlier project documentation referenced Netlify and Render deployments.
+
+Treat those deployments as historical unless their current ownership and maintenance status have been verified.
+
+---
+
+# Security Considerations
+
+The current tracked repository was remediated to remove committed credentials, account backups, generated archives, and the bundled GeoLite2 database.
+
+Sensitive application routes now require either:
+
+- authenticated user access using JWTs, or
+- the dedicated ingestion API key
+
+However, historical Git objects require separate consideration.
+
+See [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) for:
+
+- confirmed findings
+- remediation details
+- credential-rotation requirements
+- residual risks
+- Git-history cleanup recommendations
+- validation results
+
+A fresh threat model and deployment-security review should be performed before the platform is used with production network data.
+
+---
+
+# Team Attribution
+
+IntruSight was built by a **seven-member final-year university project team**.
+
+The original Git history and contributor attribution are intentionally preserved.
+
+Repository ownership or hosting by one contributor does **not** imply sole authorship.
+
+Features across the overall application were delivered collaboratively.
+
+My independently attributable work is documented in the **My Contribution** section above.
+
+---
+
+# Responsible Use
+
+IntruSight is an educational and defensive cybersecurity project.
+
+It is intended to explore:
+
+- intrusion-detection integration
+- security telemetry normalization
+- backend alert ingestion
+- analyst workflows
+- security-platform engineering
+
+Synthetic alerts included for development are test data and must not be represented as real detected attacks.
+
+The project should undergo a fresh threat model and deployment review before handling sensitive or production network telemetry.
