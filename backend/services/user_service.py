@@ -96,22 +96,7 @@ async def get_all_users():
         })
     return users
 
-async def get_users_with_telegram_id():
-    users = []
-    query = {
-        "status": "active",
-        "telegram_id": {"$exists": True, "$nin": [None, ""]},
-    }
-    async for user in db.users.find(query):
-        users.append({
-            "id": str(user["_id"]),
-            "email": user["email"],
-            "full_name": user["full_name"],
-            "telegram_id": user["telegram_id"]
-        })
-    return users
-
-async def update_user_profile(user_id: str, full_name: str, telegram_id: str):
+async def update_user_profile(user_id: str, full_name: str):
     from bson import ObjectId
     try:
         update_fields = {}
@@ -120,11 +105,6 @@ async def update_user_profile(user_id: str, full_name: str, telegram_id: str):
         if full_name is not None:
             validate_full_name(full_name)
             update_fields["full_name"] = full_name.strip()
-
-        # Update telegram_id
-        if telegram_id is not None:
-            telegram_id = telegram_id.strip()
-            update_fields["telegram_id"] = telegram_id
 
         # If nothing to update, return current user
         if not update_fields:

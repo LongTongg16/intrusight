@@ -217,8 +217,8 @@ class TestUserModel:
         assert user.password == "  ValidPass123!  "
         assert user.full_name == "Test User"
 
-    def test_user_in_with_telegram(self):
-        """Test UserIn with telegram ID."""
+    def test_user_in_does_not_accept_telegram_id(self):
+        """Registration no longer carries a Telegram chat ID."""
         user_data = {
             "email": "test@example.com",
             "password": "ValidPass123!",
@@ -229,7 +229,8 @@ class TestUserModel:
 
         user = UserIn(**user_data)
 
-        assert user.telegram_id == "123456"
+        assert not hasattr(user, "telegram_id")
+        assert "telegram_id" not in user.model_dump()
 
     def test_user_out_valid(self):
         """Test valid UserOut model."""
@@ -239,7 +240,6 @@ class TestUserModel:
             "full_name": "Test User",
             "role": RoleEnum.ANALYST.value,
             "status": "active",
-            "telegram_id": "123456"
         }
 
         user = UserOut(**user_data)
@@ -247,6 +247,7 @@ class TestUserModel:
         assert user.id == "user_123"
         assert user.email == "test@example.com"
         assert user.status == "active"
+        assert "telegram_id" not in user.model_dump()
 
 
 class TestLoginModel:
@@ -312,19 +313,16 @@ class TestEditProfileModel:
         """Test valid EditProfileIn model."""
         profile_data = {
             "full_name": "Updated Name",
-            "telegram_id": "789012"
         }
 
         profile = EditProfileIn(**profile_data)
 
         assert profile.full_name == "Updated Name"
-        assert profile.telegram_id == "789012"
+        assert "telegram_id" not in profile.model_dump()
 
     def test_edit_profile_full_name_required(self):
         """Test EditProfileIn full_name is required."""
-        profile_data = {
-            "telegram_id": "789012"
-        }
+        profile_data = {}
 
         with pytest.raises(ValidationError):
             EditProfileIn(**profile_data)
@@ -333,14 +331,11 @@ class TestEditProfileModel:
         """Test EditProfileIn strips whitespace."""
         profile_data = {
             "full_name": "  Updated Name  ",
-            "telegram_id": "  789012  "
         }
 
         profile = EditProfileIn(**profile_data)
 
         assert profile.full_name == "Updated Name"
-        # Model does not strip whitespace by default
-        assert profile.telegram_id == "  789012  "
 
 
 class TestChangePasswordModel:
@@ -434,25 +429,25 @@ class TestUserListOut:
             "full_name": "Test User",
             "role": "Security Analyst",
             "status": "active",
-            "telegram_id": "123456"
         }
 
         user = UserListOut(**user_data)
 
         assert user.id == "user_123"
         assert user.email == "test@example.com"
-        assert user.telegram_id == "123456"
 
-    def test_user_list_out_without_telegram(self):
-        """Test UserListOut without telegram ID."""
+    def test_user_list_out_does_not_expose_telegram_id(self):
+        """The admin user listing must not carry Telegram chat IDs."""
         user_data = {
             "id": "user_123",
             "email": "test@example.com",
             "full_name": "Test User",
             "role": "Security Analyst",
-            "status": "active"
+            "status": "active",
+            "telegram_id": "123456"
         }
 
         user = UserListOut(**user_data)
 
-        assert user.telegram_id is None
+        assert not hasattr(user, "telegram_id")
+        assert "telegram_id" not in user.model_dump()

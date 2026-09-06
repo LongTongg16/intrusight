@@ -33,7 +33,11 @@ BACKUP_DIR = Path(
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 BACKUP_FILENAME = re.compile(r"^backup_\d{8}_\d{6}\.json\.gz$")
 
-COLLECTIONS = ["users", "logs", "alerts"]
+# Canonical application collections. The log-source collection is `log_sources`
+# (see routes/logs.py, which reads and writes db.log_sources); the earlier "logs"
+# entry named a collection the application never creates, so stats always reported
+# zero and backups silently omitted every configured log source.
+COLLECTIONS = ["users", "alerts", "log_sources"]
 
 # In-memory maintenance log (persisted to DB as well)
 async def write_maintenance_log(action: str, detail: str, status: str = "success"):
