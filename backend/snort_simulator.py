@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SNORT_PATH = os.getenv("ALERTS_FILE_PATH", "/opt/homebrew/var/log/snort/alert_json.txt")
+SNORT_PATH = os.getenv("SNORT_ALERT_PATH") or os.getenv(
+    "ALERTS_FILE_PATH", "/opt/homebrew/var/log/snort/alert_json.txt"
+)
 
 SNORT_ALERTS = [
     {

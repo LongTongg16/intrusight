@@ -15,13 +15,19 @@ python -m pip install -r requirements.txt
 cp ../.env.example .env
 ```
 
-Replace every required placeholder in `.env`, start MongoDB, and run:
+Replace every required placeholder in `.env` and run `chmod 600 .env`. The file
+is gitignored and loaded automatically, so shell exports are not required.
+
+Start MongoDB separately, then run:
 
 ```bash
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The API documentation is at `http://localhost:8000/docs`.
+The API documentation is at `http://localhost:8000/docs`. The public
+`http://localhost:8000/health` response reports both API liveness and MongoDB
+readiness without exposing the MongoDB URI. See the root README for Docker,
+Homebrew, external MongoDB, and connectivity-check instructions.
 
 ## Ingestion
 

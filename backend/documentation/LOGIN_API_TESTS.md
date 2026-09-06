@@ -1,5 +1,12 @@
 # Comprehensive Login API Tests Implementation
 
+> **Historical working note.** This file records the state of the project at an
+> earlier milestone. Test counts, coverage figures, file paths, and readiness
+> statements in it are not current and are not maintained. For the current
+> position see [`README.md`](../../README.md) and
+> [`SECURITY_AUDIT.md`](../../SECURITY_AUDIT.md), which are authoritative where
+> they conflict with this file.
+
 ## Overview
 Successfully implemented comprehensive testing for the login API endpoint with 13 focused test cases covering HTTP status codes, error handling, token validation, and sequential login scenarios.
 
