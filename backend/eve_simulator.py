@@ -3,10 +3,9 @@ import os
 import random
 import time
 from datetime import datetime, timezone
-from dotenv import load_dotenv
+from config import load_backend_env
 
-load_dotenv()
-
+load_backend_env()
 EVE_PATH = os.getenv("SURICATA_EVE_PATH") or os.getenv(
     "ALERTS_FILE_PATH", "/opt/homebrew/var/log/suricata/eve.json"
 )

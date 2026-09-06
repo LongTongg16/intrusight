@@ -2,10 +2,9 @@ import json
 import os
 import time
 import requests
-from dotenv import load_dotenv
+from config import load_backend_env
 
-load_dotenv()
-
+load_backend_env()
 # SNORT_ALERT_PATH is the current variable; ALERTS_FILE_PATH is the legacy name
 # kept as a fallback so existing deployments keep working.
 SNORT_PATH = os.getenv("SNORT_ALERT_PATH") or os.getenv(

@@ -3,10 +3,9 @@ import os
 import random
 import time
 from datetime import datetime
-from dotenv import load_dotenv
+from config import load_backend_env
 
-load_dotenv()
-
+load_backend_env()
 SNORT_PATH = os.getenv("SNORT_ALERT_PATH") or os.getenv(
     "ALERTS_FILE_PATH", "/opt/homebrew/var/log/snort/alert_json.txt"
 )

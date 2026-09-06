@@ -2,10 +2,9 @@ import json
 import os
 import time
 import requests
-from dotenv import load_dotenv
+from config import load_backend_env
 
-load_dotenv()
-
+load_backend_env()
 # SURICATA_EVE_PATH is the current variable; ALERTS_FILE_PATH is the legacy name
 # kept as a fallback so existing deployments keep working.
 EVE_PATH = os.getenv("SURICATA_EVE_PATH") or os.getenv(

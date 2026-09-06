@@ -2,10 +2,9 @@ import time
 import requests
 import os
 from datetime import datetime, timezone
-from dotenv import load_dotenv
+from config import load_backend_env
 
-load_dotenv()
-
+load_backend_env()
 KISMET_API_KEY = os.getenv("KISMET_API_KEY")
 KISMET_URL = os.getenv(
     "KISMET_URL",

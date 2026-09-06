@@ -3,10 +3,9 @@ import json
 import os
 import requests
 from datetime import datetime, timezone
-from dotenv import load_dotenv
+from config import load_backend_env
 
-load_dotenv()
-
+load_backend_env()
 API_URL = os.getenv(
     "API_URL",
     "http://localhost:8000/api/ingest/alerts"

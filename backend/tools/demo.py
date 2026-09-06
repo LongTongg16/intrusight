@@ -28,9 +28,14 @@ REPO = BACKEND.parent
 sys.path.insert(0, str(BACKEND))
 
 import requests  # noqa: E402
-from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(BACKEND / ".env")
+# The same helper the API itself uses, so the loader and the backend can never
+# resolve different credentials from the same machine. It reads backend/.env by
+# absolute path (working-directory independent) and never overrides a variable
+# already exported into the environment.
+from config import IngestKeyError, load_backend_env, resolve_ingest_api_key  # noqa: E402
+
+load_backend_env()
 
 import eve_ingestor  # noqa: E402
 import snort_ingestor  # noqa: E402
@@ -39,7 +44,6 @@ import kismet_ingestor  # noqa: E402
 
 API_BASE = os.getenv("DEMO_API_BASE", "http://localhost:8000")
 INGEST_URL = f"{API_BASE}/api/ingest/alerts"
-INGEST_API_KEY = os.getenv("INGEST_API_KEY")
 FIXTURES = REPO / "demo" / "fixtures"
 
 # Marks every record this loader creates. Used for cleanup and shown in the UI.
@@ -105,28 +109,52 @@ ENGINES = {
 }
 
 
-def _post(payload):
+def _post(payload, api_key):
     payload = dict(payload)
     context = dict(payload.get("engine_context") or {})
     context["provenance"] = PROVENANCE
     payload["engine_context"] = context
 
-    response = requests.post(
+    return requests.post(
         INGEST_URL,
         json=payload,
-        headers={"X-Ingest-API-Key": INGEST_API_KEY},
+        headers={"X-Ingest-API-Key": api_key},
         timeout=15,
     )
-    return response
+
+
+# Guidance for the two ways a correctly-formed key can still be refused. Neither
+# message contains key material.
+_CREDENTIAL_HINT = (
+    "The API rejected the ingestion key.\n"
+    "  The key this loader read from backend/.env is not the one the running\n"
+    "  backend process holds. A server keeps the value it had at startup, so a\n"
+    "  backend started before backend/.env was last changed will still be using\n"
+    "  the old key.\n"
+    "  Restart the backend so it re-reads backend/.env, then run this again.\n"
+    "  (If INGEST_API_KEY is exported in the backend's shell, that export wins\n"
+    "  over backend/.env — unset it or make the two match.)"
+)
+
+_UNCONFIGURED_HINT = (
+    "The API reports that alert ingestion is not configured.\n"
+    "  The backend process has no usable INGEST_API_KEY. Set one in\n"
+    "  backend/.env and restart the backend."
+)
 
 
 def cmd_load(args):
-    if not INGEST_API_KEY:
-        raise SystemExit("INGEST_API_KEY must be set (backend/.env)")
+    # Resolve and sanity-check the credential before sending anything, so a
+    # misconfiguration reports once instead of as 21 identical failures.
+    try:
+        api_key = resolve_ingest_api_key()
+    except IngestKeyError as exc:
+        raise SystemExit(f"\n{exc}\n") from exc
 
     selected = [args.engine] if args.engine else list(ENGINES)
     totals = {}
     failures = []
+    credential_error = None
 
     print("IntruSight multi-engine demonstration")
     print(f"API: {INGEST_URL}")
@@ -137,18 +165,31 @@ def cmd_load(args):
         sent = 0
         kinds = {}
         for payload in loader():
-            response = _post(payload)
+            response = _post(payload, api_key)
             if response.status_code in (200, 201):
                 sent += 1
                 key = payload.get("observation_type") or payload["event_kind"]
                 kinds[key] = kinds.get(key, 0) + 1
+            elif response.status_code in (401, 403):
+                credential_error = _CREDENTIAL_HINT
+                break
+            elif response.status_code == 503 and "not configured" in response.text:
+                credential_error = _UNCONFIGURED_HINT
+                break
             else:
                 failures.append(f"{name}: HTTP {response.status_code} {response.text[:120]}")
         totals[name] = sent
         breakdown = ", ".join(f"{v}x {k}" for k, v in sorted(kinds.items()))
         print(f"  {name.upper():9} {role:28} {sent:>2} records   {breakdown}")
 
+        if credential_error:
+            break
+
     print("-" * 66)
+    if credential_error:
+        print(f"\n{credential_error}\n")
+        return 1
+
     print(f"  loaded {sum(totals.values())} records from recorded engine output")
     if failures:
         print("\n  failures:")
