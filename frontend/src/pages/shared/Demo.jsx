@@ -1,242 +1,401 @@
-import { useNavigate } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import PublicNavbar from "../../components/PublicNavbar";
+import "./public.css";
 
-const ALL_ALERTS = [
-  { id: "AL-1001", sev: "HIGH", type: "SQL Injection",   src: "192.168.1.12", dst: "10.0.0.45",  when: "3 mins ago",  ids: "Suricata" },
-  { id: "AL-1002", sev: "MED",  type: "Suspicious DNS",  src: "192.168.1.52", dst: "8.8.8.8",    when: "12 mins ago", ids: "Zeek" },
-  { id: "AL-1003", sev: "LOW",  type: "Port Scan",       src: "172.16.8.12",  dst: "10.0.0.12",  when: "30 mins ago", ids: "Snort" },
-  { id: "AL-1004", sev: "HIGH", type: "Brute Force",     src: "10.0.0.45",    dst: "10.0.0.12",  when: "1 hr ago",    ids: "Suricata" },
-  { id: "AL-1005", sev: "MED",  type: "Beacon Activity", src: "10.0.0.77",    dst: "45.33.12.88",when: "2 hrs ago",   ids: "Zeek" },
-  { id: "AL-1006", sev: "LOW",  type: "ICMP Flood",      src: "192.168.5.3",  dst: "10.0.0.1",   when: "3 hrs ago",   ids: "Snort" },
+/* ────────────────────────────────────────────────────────────────
+   SAMPLE DATA — the single source for every number on this page.
+   Stat tiles, both charts and the table are all derived from this
+   array, so nothing displayed here can drift from anything else.
+   This is illustrative data. It is not fetched from the backend.
+   ──────────────────────────────────────────────────────────────── */
+const SAMPLE_ALERTS = [
+  { id: "AL-1001", sev: "high",   type: "ET SCAN Potential SSH Scan",   src: "192.168.1.12", dst: "10.0.0.45",   port: 22,   proto: "TCP", engine: "Suricata", minsAgo: 3 },
+  { id: "AL-1002", sev: "medium", type: "DNS query to rare domain",     src: "192.168.1.52", dst: "8.8.8.8",     port: 53,   proto: "UDP", engine: "Zeek",     minsAgo: 12 },
+  { id: "AL-1003", sev: "low",    type: "ICMP echo request",            src: "172.16.8.12",  dst: "10.0.0.12",   port: 0,    proto: "ICMP", engine: "Snort",   minsAgo: 30 },
+  { id: "AL-1004", sev: "high",   type: "SSH brute force attempt",      src: "10.0.0.45",    dst: "10.0.0.12",   port: 22,   proto: "TCP", engine: "Suricata", minsAgo: 64 },
+  { id: "AL-1005", sev: "medium", type: "Long-duration outbound flow",  src: "10.0.0.77",    dst: "45.33.12.88", port: 443,  proto: "TCP", engine: "Zeek",     minsAgo: 121 },
+  { id: "AL-1006", sev: "low",    type: "Unencrypted HTTP request",     src: "192.168.5.3",  dst: "10.0.0.1",    port: 80,   proto: "TCP", engine: "Snort",    minsAgo: 154 },
+  { id: "AL-1007", sev: "high",   type: "SMB exploit signature match",  src: "192.168.1.90", dst: "10.0.0.20",   port: 445,  proto: "TCP", engine: "Snort",    minsAgo: 188 },
+  { id: "AL-1008", sev: "medium", type: "Deauthentication burst",       src: "aa:bb:cc:11",  dst: "de:ad:be:ef", port: 0,    proto: "802.11", engine: "Kismet", minsAgo: 205 },
+  { id: "AL-1009", sev: "low",    type: "New device on monitored SSID", src: "aa:bb:cc:22",  dst: "de:ad:be:ef", port: 0,    proto: "802.11", engine: "Kismet", minsAgo: 240 },
+  { id: "AL-1010", sev: "medium", type: "TLS certificate anomaly",      src: "10.0.0.31",    dst: "104.18.9.4",  port: 443,  proto: "TCP", engine: "Zeek",     minsAgo: 268 },
+  { id: "AL-1011", sev: "high",   type: "SQL injection pattern",        src: "203.0.113.9",  dst: "10.0.0.60",   port: 8080, proto: "TCP", engine: "Suricata", minsAgo: 305 },
+  { id: "AL-1012", sev: "low",    type: "Port sweep, low rate",         src: "172.16.8.44",  dst: "10.0.0.0",    port: 0,    proto: "TCP", engine: "Snort",    minsAgo: 341 },
 ];
 
-const STAT_TARGETS = [
-  { label: "Total Alerts", target: 1245, tone: null },
-  { label: "High",         target: 12,   tone: "HIGH" },
-  { label: "Medium",       target: 58,   tone: "MED" },
-  { label: "Low",          target: 175,  tone: "LOW" },
-];
+const SEV_META = {
+  high:   { label: "High",   color: "#fb7185" },
+  medium: { label: "Medium", color: "#fbbf24" },
+  low:    { label: "Low",    color: "#34d399" },
+};
 
-function useCountUp(target, duration = 1200) {
-  const [value, setValue] = useState(0);
-  const raf = useRef(null);
+const SEV_FILTERS = ["all", "high", "medium", "low"];
+const ENGINE_COLOR = "#4cc9f0";
 
-  useEffect(() => {
-    let start = null;
-    const step = (ts) => {
-      if (!start) start = ts;
-      const progress = Math.min((ts - start) / duration, 1);
-      setValue(Math.floor(progress * target));
-      if (progress < 1) raf.current = requestAnimationFrame(step);
-    };
-    raf.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf.current);
-  }, [target, duration]);
+const relativeTime = (mins) => {
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+};
 
-  return value;
-}
-
-function StatCard({ label, target, tone }) {
-  const value = useCountUp(target);
-  const toneStyle = tone ? statTone(tone) : {};
-  return (
-    <div style={{ ...styles.stat, ...toneStyle }}>
-      <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{value.toLocaleString()}</div>
-    </div>
-  );
-}
-
-function statTone(t) {
-  if (t === "HIGH") return { borderColor: "#ef4444" };
-  if (t === "MED")  return { borderColor: "#f59e0b" };
-  if (t === "LOW")  return { borderColor: "#10b981" };
-  return {};
-}
-
-function sevStyle(sev) {
-  if (sev === "HIGH") return { backgroundColor: "#7f1d1d", borderColor: "#ef4444" };
-  if (sev === "MED")  return { backgroundColor: "#78350f", borderColor: "#f59e0b" };
-  return { backgroundColor: "#064e3b", borderColor: "#10b981" };
-}
-
-function Kv({ k, v, mono }) {
-  return (
-    <div style={styles.kv}>
-      <div style={styles.kvKey}>{k}</div>
-      <div style={{ ...styles.kvVal, ...(mono ? styles.mono : {}) }}>{v}</div>
-    </div>
-  );
-}
-
-const SEV_FILTERS = ["ALL", "HIGH", "MED", "LOW"];
+const chartTooltip = {
+  contentStyle: {
+    background: "#131e33",
+    border: "1px solid rgba(148,163,184,0.22)",
+    borderRadius: 8,
+    color: "#dde5f2",
+    fontSize: 13,
+  },
+  cursor: { fill: "rgba(148,163,184,0.06)" },
+};
 
 function Demo() {
-  const navigate = useNavigate();
-  const [open, setOpen]         = useState(false);
-  const [active, setActive]     = useState(null);
-  const [sevFilter, setSevFilter] = useState("ALL");
+  const [sevFilter, setSevFilter] = useState("all");
+  const [activeAlert, setActiveAlert] = useState(null);
+  const closeRef = useRef(null);
+  const lastFocusedRef = useRef(null);
 
-  const filtered = sevFilter === "ALL"
-    ? ALL_ALERTS
-    : ALL_ALERTS.filter((a) => a.sev === sevFilter);
+  const stats = useMemo(() => {
+    const by = { high: 0, medium: 0, low: 0 };
+    SAMPLE_ALERTS.forEach((a) => { by[a.sev] += 1; });
+    return { total: SAMPLE_ALERTS.length, ...by };
+  }, []);
 
-  const openAlert = (a) => { setActive(a); setOpen(true); };
+  const severityData = useMemo(
+    () =>
+      Object.entries(SEV_META)
+        .map(([key, meta]) => ({ name: meta.label, value: stats[key], color: meta.color }))
+        .filter((d) => d.value > 0),
+    [stats]
+  );
+
+  const engineData = useMemo(() => {
+    const counts = {};
+    SAMPLE_ALERTS.forEach((a) => { counts[a.engine] = (counts[a.engine] || 0) + 1; });
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, []);
+
+  const filtered = useMemo(
+    () => (sevFilter === "all" ? SAMPLE_ALERTS : SAMPLE_ALERTS.filter((a) => a.sev === sevFilter)),
+    [sevFilter]
+  );
+
+  const openAlert = (alert, event) => {
+    lastFocusedRef.current = event.currentTarget;
+    setActiveAlert(alert);
+  };
+
+  const closeAlert = useCallback(() => {
+    setActiveAlert(null);
+    lastFocusedRef.current?.focus();
+  }, []);
+
+  // Esc closes the dialog; focus moves into it on open and back out on close.
+  useEffect(() => {
+    if (!activeAlert) return undefined;
+    const onKeyDown = (e) => { if (e.key === "Escape") closeAlert(); };
+    document.addEventListener("keydown", onKeyDown);
+    closeRef.current?.focus();
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [activeAlert, closeAlert]);
 
   return (
-    <div style={styles.page}>
-      <PublicNavbar active="Demo" />
+    <div className="p-page">
+      <PublicNavbar />
 
-      <section style={styles.hero}>
-        <div style={styles.heroLeft}>
-          <div style={styles.heroBadge}>Interactive Preview</div>
-          <h1 style={styles.heroTitle}>Interactive Demo</h1>
-          <p style={styles.heroSubtitle}>
-            Explore a sample analyst dashboard with demo data. Some actions are disabled until you log in.
+      <main className="p-main">
+        <section className="p-shell" style={{ paddingTop: "var(--p-s6)" }}>
+          <p className="p-badge">
+            <span className="p-badge__dot" aria-hidden="true" />
+            Interactive preview
           </p>
-          <div style={styles.heroCtas}>
-            <button style={styles.primaryBtn} onClick={() => navigate("/login")}>Login to Full System</button>
-            <button style={styles.secondaryBtn} onClick={() => navigate("/register")}>Register</button>
-          </div>
-        </div>
-        <div style={styles.heroRight}>
-          <div style={styles.watermarkCard}>
-            <div style={styles.watermarkTitle}>Demo Data</div>
-            <div style={styles.watermarkText}>Login required for live ingestion & incident actions.</div>
-          </div>
-        </div>
-      </section>
+          <h1 className="p-h1">Analyst view, sample data</h1>
+          <p className="p-lede" style={{ marginBottom: "var(--p-s4)" }}>
+            A read-only walkthrough of the alert queue. Every figure below is
+            computed from a fixed set of twelve illustrative alerts held in the
+            page itself.
+          </p>
 
-      <div style={styles.demoWrap}>
-        <div style={styles.demoGrid}>
-          <aside style={styles.sidebar}>
-            <div style={styles.sideTitle}>Demo Menu</div>
-            <div style={styles.sideItemActive}>Dashboard</div>
-            <div style={styles.sideItem}>Alerts</div>
-            <div style={styles.sideItem}>Reports</div>
-            <div style={styles.sideItem}>Traffic Logs</div>
-            <div style={styles.sideItem}>Notifications</div>
-            <div style={styles.sideHint}>Disabled navigation (demo)</div>
-          </aside>
+          <div className="p-notice" style={{ marginBottom: "var(--p-s5)" }}>
+            <span aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </span>
+            <span>
+              <strong>Sample data.</strong> Nothing on this page is fetched from
+              a backend or produced by a sensor. Sign in to work real alerts.
+            </span>
+          </div>
 
-          <main style={styles.main}>
-            {/* Animated stat cards */}
-            <div style={styles.cards}>
-              {STAT_TARGETS.map((s) => (
-                <StatCard key={s.label} label={s.label} target={s.target} tone={s.tone} />
+          <div className="p-hero__actions" style={{ marginTop: 0, marginBottom: "var(--p-s6)" }}>
+            <Link to="/login" className="p-btn p-btn--primary">Sign in</Link>
+            <Link to="/register" className="p-btn p-btn--secondary">Create an account</Link>
+          </div>
+        </section>
+
+        <section className="p-shell p-demo" aria-label="Demo dashboard">
+          <nav className="p-demo__nav" aria-label="Demo sections">
+            <p className="p-demo__nav-title">Analyst menu</p>
+            <ul className="p-demo__nav-list">
+              <li className="p-demo__nav-item" aria-current="page">Dashboard</li>
+              <li className="p-demo__nav-item">Alerts</li>
+              <li className="p-demo__nav-item">Reports</li>
+              <li className="p-demo__nav-item">Threat map</li>
+              <li className="p-demo__nav-item">Notifications</li>
+            </ul>
+            <p className="p-body" style={{ fontSize: "var(--p-fs-xs)", marginTop: "var(--p-s2)" }}>
+              Navigation is inert in this preview.
+            </p>
+          </nav>
+
+          <div className="p-demo__body">
+            <ul className="p-metrics" style={{ paddingBottom: 0 }}>
+              <li className="p-metric p-metric--lead">
+                <div className="p-metric__value">{stats.total}</div>
+                <div className="p-metric__label">Total alerts</div>
+              </li>
+              {Object.entries(SEV_META).map(([key, meta]) => (
+                <li key={key} className="p-metric">
+                  <div className="p-metric__value" style={{ color: meta.color }}>
+                    {stats[key]}
+                  </div>
+                  <div className="p-metric__label">{meta.label} severity</div>
+                </li>
               ))}
-            </div>
+            </ul>
 
-            <div style={styles.row}>
-              <div style={styles.panel}>
-                <div style={styles.panelTitle}>Threat Trend (placeholder)</div>
-                <div style={styles.chartPlaceholder}>
-                  Add charts later (Chart.js / Recharts).
+            <div className="p-demo__charts">
+              <div className="p-panel">
+                <div className="p-panel__head">
+                  <h2 className="p-panel__title">Alerts by engine</h2>
                 </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={engineData} margin={{ top: 4, right: 8, bottom: 4, left: -24 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: "#93a1b8", fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fill: "#93a1b8", fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <Tooltip {...chartTooltip} />
+                    <Bar dataKey="count" name="Alerts" fill={ENGINE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={48} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-              <div style={styles.panel}>
-                <div style={styles.panelTitle}>Alerts Distribution (placeholder)</div>
-                <div style={styles.chartPlaceholder}>Pie chart placeholder</div>
+
+              <div className="p-panel">
+                <div className="p-panel__head">
+                  <h2 className="p-panel__title">Severity split</h2>
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={severityData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={44}
+                      outerRadius={72}
+                      paddingAngle={2}
+                      strokeWidth={0}
+                    >
+                      {severityData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip {...chartTooltip} cursor={false} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Text legend so severity is never conveyed by colour alone. */}
+                <ul className="p-tags" style={{ justifyContent: "center" }}>
+                  {severityData.map((entry) => (
+                    <li key={entry.name} className="p-tag" style={{ color: entry.color }}>
+                      {entry.name} · {entry.value}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 
-            <div style={styles.panel}>
-              <div style={styles.panelHeader}>
-                <div style={styles.panelTitle}>Recent Alerts</div>
-                <button style={styles.ghostBtn} onClick={() => navigate("/login")}>Open Analyst View →</button>
+            <div className="p-panel">
+              <div className="p-panel__head">
+                <h2 className="p-panel__title">Alert queue</h2>
+                <Link to="/login" className="p-btn p-btn--ghost">
+                  Open the real analyst view →
+                </Link>
               </div>
 
-              {/* Severity filter tabs */}
-              <div style={styles.filterRow}>
+              <div className="p-controls">
+                <div className="p-tabs" role="group" aria-label="Filter by severity">
                 {SEV_FILTERS.map((f) => (
                   <button
                     key={f}
-                    style={sevFilter === f ? styles.filterTabActive : styles.filterTab}
+                    type="button"
+                    className="p-tab"
+                    aria-pressed={sevFilter === f}
                     onClick={() => setSevFilter(f)}
                   >
-                    {f}
+                    {f === "all" ? "All" : SEV_META[f].label}
+                    {f !== "all" && ` (${stats[f]})`}
                   </button>
                 ))}
+                </div>
               </div>
 
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
+              <div className="p-tablewrap">
+                <table className="p-table">
+                  <caption>
+                    Showing {filtered.length} of {SAMPLE_ALERTS.length} sample alerts
+                  </caption>
                   <thead>
                     <tr>
-                      <th style={styles.th}>Severity</th>
-                      <th style={styles.th}>Type</th>
-                      <th style={styles.th}>Source IP</th>
-                      <th style={styles.th}>Destination IP</th>
-                      <th style={styles.th}>IDS</th>
-                      <th style={styles.th}>Time</th>
-                      <th style={styles.th}>Action</th>
+                      <th scope="col">Severity</th>
+                      <th scope="col">Signature</th>
+                      <th scope="col">Source</th>
+                      <th scope="col">Destination</th>
+                      <th scope="col">Engine</th>
+                      <th scope="col">Seen</th>
+                      <th scope="col"><span className="visually-hidden">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} style={{ ...styles.td, textAlign: "center", color: "#64748b", padding: "2rem" }}>
-                          No alerts for this filter.
+                    {filtered.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          <span className={`p-sev p-sev--${a.sev}`}>{SEV_META[a.sev].label}</span>
+                        </td>
+                        <td>{a.type}</td>
+                        <td className="p-mono">{a.src}</td>
+                        <td className="p-mono">{a.dst}</td>
+                        <td><span className="p-pill">{a.engine}</span></td>
+                        <td style={{ color: "var(--p-text-muted)", whiteSpace: "nowrap" }}>
+                          {relativeTime(a.minsAgo)}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="p-rowbtn"
+                            onClick={(e) => openAlert(a, e)}
+                          >
+                            View
+                            <span className="visually-hidden"> details for {a.type}</span>
+                          </button>
                         </td>
                       </tr>
-                    ) : (
-                      filtered.map((a) => (
-                        <tr key={a.id} style={styles.tr}>
-                          <td style={styles.td}>
-                            <span style={{ ...styles.badge, ...sevStyle(a.sev) }}>{a.sev}</span>
-                          </td>
-                          <td style={styles.td}>{a.type}</td>
-                          <td style={styles.tdMono}>{a.src}</td>
-                          <td style={styles.tdMono}>{a.dst}</td>
-                          <td style={styles.td}><span style={styles.tag}>{a.ids}</span></td>
-                          <td style={styles.td}>{a.when}</td>
-                          <td style={styles.td}>
-                            <button style={styles.smallBtn} onClick={() => openAlert(a)}>View</button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
-          </main>
+          </div>
+        </section>
+      </main>
+
+      <footer className="p-footer">
+        <div className="p-shell p-footer__inner">
+          <span>IntruSight — educational network intrusion alert management platform.</span>
+          <span>FYP-26-S1-20</span>
         </div>
-      </div>
+      </footer>
 
-      <footer style={styles.footer}>© 2026 Intrusion Detection Dashboard</footer>
-
-      {open && active && (
-        <div style={styles.modalOverlay} onClick={() => setOpen(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
+      {activeAlert && (
+        <div
+          className="p-overlay"
+          onClick={closeAlert}
+          role="presentation"
+        >
+          <div
+            className="p-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="demo-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-modal__head">
               <div>
-                <div style={styles.modalTitle}>Alert Detail (Demo)</div>
-                <div style={styles.modalSubtitle}>{active.id} • {active.type}</div>
+                <h2 id="demo-modal-title" className="p-h3" style={{ margin: 0 }}>
+                  {activeAlert.type}
+                </h2>
+                <p className="p-body" style={{ fontSize: "var(--p-fs-sm)" }}>
+                  {activeAlert.id} · sample alert
+                </p>
               </div>
-              <button style={styles.modalClose} onClick={() => setOpen(false)}>×</button>
+              <button
+                type="button"
+                ref={closeRef}
+                className="p-modal__close"
+                onClick={closeAlert}
+                aria-label="Close alert details"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
             </div>
-            <div style={styles.modalBody}>
-              <div style={styles.kvGrid}>
-                <Kv k="Severity"       v={active.sev} />
-                <Kv k="IDS Source"     v={active.ids} />
-                <Kv k="Source IP"      v={active.src} mono />
-                <Kv k="Destination IP" v={active.dst} mono />
-                <Kv k="Time"           v={active.when} />
+
+            <div className="p-modal__body">
+              <dl className="p-kv">
+                <div>
+                  <dt>Severity</dt>
+                  <dd>
+                    <span className={`p-sev p-sev--${activeAlert.sev}`}>
+                      {SEV_META[activeAlert.sev].label}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Detection engine</dt>
+                  <dd>{activeAlert.engine}</dd>
+                </div>
+                <div>
+                  <dt>Source</dt>
+                  <dd className="p-mono">{activeAlert.src}</dd>
+                </div>
+                <div>
+                  <dt>Destination</dt>
+                  <dd className="p-mono">{activeAlert.dst}</dd>
+                </div>
+                <div>
+                  <dt>Protocol</dt>
+                  <dd>{activeAlert.proto}{activeAlert.port ? ` / ${activeAlert.port}` : ""}</dd>
+                </div>
+                <div>
+                  <dt>Seen</dt>
+                  <dd>{relativeTime(activeAlert.minsAgo)}</dd>
+                </div>
+              </dl>
+
+              <div className="p-notice">
+                <span>
+                  Investigation notes and status changes are available to
+                  signed-in analysts. This preview is read-only.
+                </span>
               </div>
-              <div style={styles.divider} />
-              <div style={styles.noteTitle}>Investigation Notes (demo)</div>
-              <textarea
-                style={styles.textarea}
-                placeholder="Add notes... (login required)"
-                disabled
-                value="Demo mode: login required to create incidents or save notes."
-              />
             </div>
-            <div style={styles.modalFooter}>
-              <button style={styles.secondaryBtn} onClick={() => setOpen(false)}>Close</button>
-              <button style={styles.primaryBtn} onClick={() => navigate("/login")}>Login to Investigate</button>
+
+            <div className="p-modal__foot">
+              <button type="button" className="p-btn p-btn--secondary" onClick={closeAlert}>
+                Close
+              </button>
+              <Link to="/login" className="p-btn p-btn--primary">
+                Sign in to investigate
+              </Link>
             </div>
           </div>
         </div>
@@ -244,275 +403,5 @@ function Demo() {
     </div>
   );
 }
-
-const styles = {
-  page: {
-    backgroundColor: "#0f172a",
-    color: "#f1f5f9",
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    fontFamily: "sans-serif",
-  },
-  hero: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "1rem",
-    flexWrap: "wrap",
-    padding: "3rem 2rem",
-  },
-  heroLeft: { maxWidth: "720px" },
-  heroBadge: {
-    display: "inline-block",
-    backgroundColor: "rgba(59,130,246,0.12)",
-    border: "1px solid rgba(59,130,246,0.3)",
-    color: "#60a5fa",
-    borderRadius: "999px",
-    padding: "0.3rem 0.9rem",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    marginBottom: "0.75rem",
-    letterSpacing: "0.03em",
-  },
-  heroTitle: { fontSize: "2.4rem", fontWeight: 900, marginBottom: "0.8rem" },
-  heroSubtitle: { color: "#94a3b8", fontSize: "1.05rem", margin: 0, lineHeight: 1.6 },
-  heroCtas: { display: "flex", gap: "0.75rem", marginTop: "1.3rem", flexWrap: "wrap" },
-  heroRight: { flex: 1, display: "flex", justifyContent: "flex-end" },
-  watermarkCard: {
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    padding: "1rem",
-    minWidth: "260px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-  },
-  watermarkTitle: { fontWeight: 900 },
-  watermarkText: { color: "#94a3b8", marginTop: "0.35rem", lineHeight: 1.6 },
-
-  demoWrap: { padding: "0 2rem 2rem" },
-  demoGrid: {
-    display: "grid",
-    gridTemplateColumns: "240px 1fr",
-    gap: "1rem",
-    alignItems: "start",
-  },
-  sidebar: {
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    padding: "1rem",
-    position: "sticky",
-    top: "1rem",
-  },
-  sideTitle: { fontWeight: 900, marginBottom: "0.8rem" },
-  sideItem: {
-    padding: "0.65rem 0.75rem",
-    borderRadius: "10px",
-    border: "1px solid #24324f",
-    backgroundColor: "#0b1224",
-    color: "#cbd5e1",
-    marginBottom: "0.6rem",
-    opacity: 0.8,
-  },
-  sideItemActive: {
-    padding: "0.65rem 0.75rem",
-    borderRadius: "10px",
-    border: "1px solid #3b82f6",
-    backgroundColor: "#0b1224",
-    color: "#ffffff",
-    marginBottom: "0.6rem",
-    fontWeight: 900,
-  },
-  sideHint: { color: "#64748b", fontSize: "0.85rem", marginTop: "0.5rem" },
-
-  main: { display: "flex", flexDirection: "column", gap: "1rem" },
-  cards: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" },
-  stat: {
-    backgroundColor: "#111c33",
-    border: "2px solid #24324f",
-    borderRadius: "14px",
-    padding: "1rem",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-  },
-  statLabel: { color: "#94a3b8", fontWeight: 800 },
-  statValue: { fontSize: "1.8rem", fontWeight: 900, marginTop: "0.5rem" },
-
-  row: { display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem" },
-  panel: {
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    padding: "1rem",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-  },
-  panelHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" },
-  panelTitle: { fontWeight: 900 },
-  chartPlaceholder: {
-    marginTop: "0.8rem",
-    backgroundColor: "#0b1224",
-    border: "1px dashed #334155",
-    borderRadius: "12px",
-    padding: "1.2rem",
-    color: "#94a3b8",
-  },
-
-  // Severity filter tabs
-  filterRow: {
-    display: "flex",
-    gap: "0.4rem",
-    marginTop: "0.9rem",
-    flexWrap: "wrap",
-  },
-  filterTab: {
-    padding: "0.3rem 0.9rem",
-    borderRadius: "999px",
-    border: "1px solid #334155",
-    backgroundColor: "transparent",
-    color: "#94a3b8",
-    fontSize: "0.8rem",
-    fontWeight: 700,
-    cursor: "pointer",
-    letterSpacing: "0.04em",
-  },
-  filterTabActive: {
-    padding: "0.3rem 0.9rem",
-    borderRadius: "999px",
-    border: "1px solid #3b82f6",
-    backgroundColor: "rgba(59,130,246,0.15)",
-    color: "#60a5fa",
-    fontSize: "0.8rem",
-    fontWeight: 700,
-    cursor: "pointer",
-    letterSpacing: "0.04em",
-  },
-
-  tableWrap: { overflowX: "auto", borderRadius: "12px", border: "1px solid #24324f", marginTop: "0.8rem" },
-  table: { width: "100%", borderCollapse: "collapse", minWidth: "860px", backgroundColor: "#0b1224" },
-  th: {
-    textAlign: "left",
-    fontSize: "0.8rem",
-    color: "#a7b4c7",
-    padding: "0.75rem 0.9rem",
-    borderBottom: "1px solid #24324f",
-    backgroundColor: "#0c1630",
-  },
-  tr: { borderBottom: "1px solid #152545" },
-  td: { padding: "0.75rem 0.9rem", fontSize: "0.9rem", color: "#e2e8f0" },
-  tdMono: { padding: "0.75rem 0.9rem", fontSize: "0.9rem", color: "#e2e8f0", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" },
-  tag: {
-    display: "inline-block",
-    padding: "0.25rem 0.55rem",
-    borderRadius: "10px",
-    backgroundColor: "#111827",
-    border: "1px solid #24324f",
-    color: "#cbd5e1",
-    fontSize: "0.8rem",
-    fontWeight: 800,
-  },
-  badge: {
-    display: "inline-block",
-    padding: "0.25rem 0.6rem",
-    borderRadius: "999px",
-    border: "1px solid",
-    fontSize: "0.75rem",
-    fontWeight: 900,
-    color: "#fff",
-  },
-  smallBtn: {
-    backgroundColor: "#1e293b",
-    border: "1px solid #24324f",
-    color: "#e2e8f0",
-    padding: "0.45rem 0.75rem",
-    borderRadius: "10px",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  primaryBtn: {
-    padding: "0.8rem 1.2rem",
-    backgroundColor: "#3b82f6",
-    color: "#fff",
-    border: "none",
-    borderRadius: "10px",
-    fontSize: "1rem",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  secondaryBtn: {
-    padding: "0.8rem 1.2rem",
-    backgroundColor: "transparent",
-    color: "#e2e8f0",
-    border: "1px solid #334155",
-    borderRadius: "10px",
-    fontSize: "1rem",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  ghostBtn: {
-    backgroundColor: "transparent",
-    border: "1px dashed #334155",
-    color: "#cbd5e1",
-    padding: "0.55rem 0.85rem",
-    borderRadius: "10px",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  footer: {
-    marginTop: "auto",
-    textAlign: "right",
-    padding: "1rem 2rem",
-    color: "#475569",
-    fontSize: "0.8rem",
-    borderTop: "1px solid #1e293b",
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "1rem",
-    zIndex: 50,
-  },
-  modal: {
-    width: "min(800px, 95vw)",
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.5)",
-    overflow: "hidden",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    padding: "1rem",
-    borderBottom: "1px solid #24324f",
-  },
-  modalTitle: { fontWeight: 900, fontSize: "1.1rem" },
-  modalSubtitle: { color: "#94a3b8", marginTop: "0.25rem" },
-  modalClose: { background: "transparent", border: "none", color: "#cbd5e1", fontSize: "1.6rem", cursor: "pointer", lineHeight: 1 },
-  modalBody: { padding: "1rem" },
-  kvGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" },
-  kv: { backgroundColor: "#0b1224", border: "1px solid #24324f", borderRadius: "12px", padding: "0.85rem" },
-  kvKey: { color: "#94a3b8", fontSize: "0.85rem" },
-  kvVal: { fontWeight: 900, fontSize: "1rem", marginTop: "0.35rem" },
-  mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" },
-  divider: { height: "1px", backgroundColor: "#24324f", margin: "0.9rem 0" },
-  noteTitle: { fontWeight: 900, marginBottom: "0.5rem" },
-  textarea: {
-    width: "100%",
-    minHeight: "110px",
-    backgroundColor: "#0b1224",
-    border: "1px solid #24324f",
-    borderRadius: "12px",
-    padding: "0.85rem",
-    color: "#94a3b8",
-    outline: "none",
-    resize: "vertical",
-    boxSizing: "border-box",
-  },
-  modalFooter: { display: "flex", justifyContent: "flex-end", gap: "0.6rem", padding: "1rem", borderTop: "1px solid #24324f", flexWrap: "wrap" },
-};
 
 export default Demo;

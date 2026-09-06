@@ -1,415 +1,409 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { FiEye, FiRefreshCw } from 'react-icons/fi';
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line,
-  ScatterChart, Scatter, ZAxis,
-} from 'recharts';
-import './analyst.css';
-import AnalystSidebar from './AnalystSidebar';
+} from "recharts";
+import {
+  PageHeader, Button, Icon, StatusBadge, EngineBadge, EngineMark, relTime,
+  sourceOf, destOf, isObservation,
+  SectionHeader, EmptyState, ErrorState, LoadingRows,
+} from "../../components/ui";
+import "./analyst.css";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE ||
-  "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-const SEV_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+const SEV_COLORS = {
+  high:   "var(--severity-high)",
+  medium: "var(--severity-medium)",
+  low:    "var(--severity-low)",
+};
+const SEV_ORDER = { high: 0, medium: 1, low: 2 };
+const ENGINES = ["SURICATA", "SNORT", "ZEEK", "KISMET"];
 
-const DistributionChart = ({ high = 0, medium = 0, low = 0, chartType = 'donut' }) => {
-  const pieData = [
-    { name: 'High', value: high, color: SEV_COLORS.high },
-    { name: 'Medium', value: medium, color: SEV_COLORS.medium },
-    { name: 'Low', value: low, color: SEV_COLORS.low },
-  ].filter(d => d.value > 0);
-
-  const barData = [
-    { name: 'High', count: high, fill: SEV_COLORS.high },
-    { name: 'Medium', count: medium, fill: SEV_COLORS.medium },
-    { name: 'Low', count: low, fill: SEV_COLORS.low },
-  ];
-
-  if (chartType === 'bar') {
-    return (
-      <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={barData} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-          <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
-          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
-          <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 6, color: 'var(--text-main)' }} />
-          {barData.map(d => (
-            <Bar key={d.name} dataKey="count" data={[d]} fill={d.fill} radius={[4, 4, 0, 0]} />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  return (
-    <ResponsiveContainer width="100%" height={160}>
-      <PieChart>
-        <Pie
-          data={pieData.length ? pieData : [{ name: 'None', value: 1, color: 'var(--border-color)' }]}
-          cx="50%" cy="50%"
-          innerRadius={chartType === 'donut' ? 35 : 0}
-          outerRadius={60}
-          dataKey="value"
-          strokeWidth={0}
-        >
-          {(pieData.length ? pieData : [{ color: 'var(--border-color)' }]).map((entry, i) => (
-            <Cell key={i} fill={entry.color} />
-          ))}
-        </Pie>
-        <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 6, color: 'var(--text-main)' }} />
-        <Legend formatter={(v) => <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{v}</span>} />
-      </PieChart>
-    </ResponsiveContainer>
-  );
+const chartTooltip = {
+  contentStyle: {
+    background: "var(--surface-1)",
+    border: "1px solid var(--border-default)",
+    borderRadius: 8,
+    color: "var(--text-body)",
+    fontSize: 12,
+  },
+  cursor: { fill: "rgba(148,163,184,0.06)" },
 };
 
-const TrendsChart = ({ alerts = [], chartType = 'bar' }) => {
-  const hourMap = {};
-  alerts.forEach(a => {
-    if (!a.timestamp) return;
-    const d = new Date(a.timestamp);
-    const key = `${d.getHours().toString().padStart(2, '0')}:00`;
-    if (!hourMap[key]) hourMap[key] = { time: key, high: 0, medium: 0, low: 0 };
-    hourMap[key][a.severity_label] = (hourMap[key][a.severity_label] || 0) + 1;
-  });
-  const data = Object.values(hourMap).sort((a, b) => a.time.localeCompare(b.time));
+/** Alerts bucketed by hour of day, split by severity. */
+function ActivityChart({ alerts }) {
+  const data = useMemo(() => {
+    const buckets = {};
+    alerts.forEach((a) => {
+      if (!a.timestamp) return;
+      const d = new Date(a.timestamp);
+      if (Number.isNaN(d.getTime())) return;
+      const key = `${String(d.getHours()).padStart(2, "0")}:00`;
+      buckets[key] ??= { time: key, high: 0, medium: 0, low: 0 };
+      const sev = (a.severity_label || "").toLowerCase();
+      if (sev in buckets[key]) buckets[key][sev] += 1;
+    });
+    return Object.values(buckets).sort((a, b) => a.time.localeCompare(b.time));
+  }, [alerts]);
 
   if (!data.length) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 160, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No trend data available</div>;
-  }
-
-  const commonProps = {
-    data,
-    margin: { top: 4, right: 8, bottom: 4, left: -20 },
-  };
-  const axisProps = { tick: { fill: 'var(--text-muted)', fontSize: 11 } };
-  const tooltipStyle = { contentStyle: { background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 6, color: 'var(--text-main)' } };
-  const gridProps = { strokeDasharray: "3 3", stroke: "var(--border-color)" };
-
-  if (chartType === 'radar') {
-    return (
-      <ResponsiveContainer width="100%" height={160}>
-        <LineChart {...commonProps}>
-          <CartesianGrid {...gridProps} />
-          <XAxis dataKey="time" {...axisProps} />
-          <YAxis {...axisProps} />
-          <Tooltip {...tooltipStyle} />
-          <Legend formatter={(v) => <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{v}</span>} />
-          <Line type="monotone" dataKey="high" stroke={SEV_COLORS.high} strokeWidth={2} dot={{ r: 3, fill: SEV_COLORS.high }} activeDot={{ r: 5 }} />
-          <Line type="monotone" dataKey="medium" stroke={SEV_COLORS.medium} strokeWidth={2} dot={{ r: 3, fill: SEV_COLORS.medium }} activeDot={{ r: 5 }} />
-          <Line type="monotone" dataKey="low" stroke={SEV_COLORS.low} strokeWidth={2} dot={{ r: 3, fill: SEV_COLORS.low }} activeDot={{ r: 5 }} />
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  if (chartType === 'scatter') {
-    const toScatter = (sev) =>
-      alerts
-        .filter(a => a.severity_label === sev && a.timestamp)
-        .map(a => {
-          const d = new Date(a.timestamp);
-          return { x: d.getHours() + d.getMinutes() / 60, y: 1, z: 1 };
-        });
-
-    return (
-      <ResponsiveContainer width="100%" height={160}>
-        <ScatterChart margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
-          <CartesianGrid {...gridProps} />
-          <XAxis type="number" dataKey="x" name="Hour" domain={[0, 23]} tickCount={8}
-            tickFormatter={v => `${Math.floor(v)}:00`} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
-          <YAxis type="number" dataKey="y" hide />
-          <ZAxis type="number" dataKey="z" range={[20, 20]} />
-          <Tooltip
-            cursor={{ strokeDasharray: '3 3' }}
-            content={({ payload }) => {
-              if (!payload?.length) return null;
-              const h = Math.floor(payload[0]?.value);
-              return (
-                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: 'var(--text-main)' }}>
-                  {`${h}:00 – ${h + 1}:00`}
-                </div>
-              );
-            }}
-          />
-          <Legend formatter={(v) => <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{v}</span>} />
-          <Scatter name="high" data={toScatter('high')} fill={SEV_COLORS.high} fillOpacity={0.8} />
-          <Scatter name="medium" data={toScatter('medium')} fill={SEV_COLORS.medium} fillOpacity={0.8} />
-          <Scatter name="low" data={toScatter('low')} fill={SEV_COLORS.low} fillOpacity={0.8} />
-        </ScatterChart>
-      </ResponsiveContainer>
-    );
+    return <p className="dash-chart-empty">No timestamped alerts to plot.</p>;
   }
 
   return (
-    <ResponsiveContainer width="100%" height={160}>
-      <BarChart {...commonProps}>
-        <CartesianGrid {...gridProps} />
-        <XAxis dataKey="time" {...axisProps} />
-        <YAxis {...axisProps} />
-        <Tooltip {...tooltipStyle} />
-        <Legend formatter={(v) => <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{v}</span>} />
-        <Bar dataKey="high" fill={SEV_COLORS.high} radius={[3, 3, 0, 0]} />
-        <Bar dataKey="medium" fill={SEV_COLORS.medium} radius={[3, 3, 0, 0]} />
-        <Bar dataKey="low" fill={SEV_COLORS.low} radius={[3, 3, 0, 0]} />
+    <ResponsiveContainer width="100%" height={190}>
+      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -26 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" vertical={false} />
+        <XAxis dataKey="time" tick={{ fill: "var(--text-muted-c)", fontSize: 11 }} tickLine={false} axisLine={false} />
+        <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted-c)", fontSize: 11 }} tickLine={false} axisLine={false} />
+        <Tooltip {...chartTooltip} />
+        <Bar dataKey="low" stackId="s" fill={SEV_COLORS.low} />
+        <Bar dataKey="medium" stackId="s" fill={SEV_COLORS.medium} />
+        <Bar dataKey="high" stackId="s" fill={SEV_COLORS.high} radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
-};
+}
 
-const ChartTypeBtn = ({ active, onClick, label }) => (
-  <button onClick={onClick} style={{
-    background: active ? 'var(--accent-main)' : 'transparent',
-    border: '1px solid var(--border-color)',
-    borderRadius: 4,
-    color: active ? '#fff' : 'var(--text-muted)',
-    padding: '2px 8px',
-    cursor: 'pointer',
-    fontSize: '0.72rem',
-  }}>{label}</button>
-);
+function SeverityDonut({ counts }) {
+  const data = Object.entries(counts)
+    .map(([k, v]) => ({ name: k, value: v, color: SEV_COLORS[k] }))
+    .filter((d) => d.value > 0);
+
+  if (!data.length) return <p className="dash-chart-empty">No alerts to summarise.</p>;
+
+  return (
+    <>
+      <ResponsiveContainer width="100%" height={150}>
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%"
+               innerRadius={42} outerRadius={64} paddingAngle={2} strokeWidth={0}>
+            {data.map((d) => <Cell key={d.name} fill={d.color} />)}
+          </Pie>
+          <Tooltip {...chartTooltip} cursor={false} />
+        </PieChart>
+      </ResponsiveContainer>
+      {/* Text legend so severity is never conveyed by colour alone. */}
+      <ul className="dash-legend">
+        {data.map((d) => (
+          <li key={d.name}>
+            <span className="dash-legend__swatch" style={{ background: d.color }} aria-hidden="true" />
+            <span className="dash-legend__name">{d.name}</span>
+            <span className="dash-legend__value">{d.value}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/** Compact "top N" list — the repeat offenders an analyst actually chases. */
+function TopList({ title, hint, items, emptyText }) {
+  const max = items.length ? items[0].count : 1;
+  return (
+    <section className="ui-panel dash-top">
+      <div className="ui-panel__body">
+        <SectionHeader title={title} hint={hint} />
+        {items.length === 0 ? (
+          <p className="dash-chart-empty">{emptyText}</p>
+        ) : (
+          <ol className="dash-top__list">
+            {items.map((it) => (
+              <li key={it.key} className="dash-top__row">
+                <span className="dash-top__label" title={it.key}>{it.key}</span>
+                <span className="dash-top__bar" aria-hidden="true">
+                  <span style={{ width: `${Math.max(6, (it.count / max) * 100)}%` }} />
+                </span>
+                <span className="dash-top__count">{it.count}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </section>
+  );
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
-
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [backendStatus, setBackendStatus] = useState("Connecting…");
-  const [telegramId, setTelegramId] = useState("");
-  const [trendsChartType, setTrendsChartType] = useState('bar');
-  const [distChartType, setDistChartType] = useState('donut');
-  const [alertPage, setAlertPage] = useState(1);
-  const ALERTS_PER_PAGE = 10;
+  const [error, setError] = useState("");
+  const [lastLoaded, setLastLoaded] = useState(null);
 
-  const high = alerts.filter(a => a.severity_label === "high").length;
-  const medium = alerts.filter(a => a.severity_label === "medium").length;
-  const low = alerts.filter(a => a.severity_label === "low").length;
-  const total = alerts.length;
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/alerts`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setAlerts(data.items || []);
-      setBackendStatus(`✅ Connected — ${data.items?.length ?? 0} alert(s) loaded`);
+      setLastLoaded(new Date());
     } catch {
-      setBackendStatus("⚠️ Backend offline — showing no live data");
+      setError("Could not reach the API. No alerts loaded.");
       setAlerts([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${API_BASE}/api/users/profile`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
-        setTelegramId(data.telegram_id);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchData();
-    fetchUser();
   }, []);
 
-  const handleViewAlert = (alert) => navigate(`/alert/${alert.id}`, { state: { alert } });
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const sendTelegramMessage = async (alertData) => {
-    if (!telegramId) {
-      alert("No Telegram ID set in profile!");
-      return;
-    }
+  /* ── Derived triage signals (all from stored alert fields) ─── */
+  const stats = useMemo(() => {
+    const counts = { high: 0, medium: 0, low: 0 };
+    let needsTriage = 0;
+    let highOpen = 0;
+    const engines = new Set();
 
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/api/alerts/send-telegram`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ alert_id: alertData.id })
-      });
+    let observations = 0;
 
-      const data = await res.json();
-      if (data.ok) {
-        alert("Telegram message sent!");
-      } else {
-        alert("Failed to send Telegram message");
+    alerts.forEach((a) => {
+      // Every engine contributes to coverage, including the ones that only
+      // report context.
+      if (a.source_nids) engines.add(String(a.source_nids).toUpperCase());
+
+      if (isObservation(a)) {
+        observations += 1;
+        return;
       }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to send Telegram message");
-    }
-  };
+
+      const sev = (a.severity_label || "").toLowerCase();
+      const status = (a.status || "new").toLowerCase();
+      if (sev in counts) counts[sev] += 1;
+      if (status === "new") needsTriage += 1;
+      if (sev === "high" && status !== "resolved") highOpen += 1;
+    });
+
+    return { counts, needsTriage, highOpen, engines, observations,
+             total: alerts.length, detections: alerts.length - observations };
+  }, [alerts]);
+
+  const topSources = useMemo(() => {
+    const m = new Map();
+    alerts.forEach((a) => a.src_ip && m.set(a.src_ip, (m.get(a.src_ip) || 0) + 1));
+    return [...m.entries()].map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [alerts]);
+
+  const topSignatures = useMemo(() => {
+    const m = new Map();
+    alerts.forEach((a) => a.signature && m.set(a.signature, (m.get(a.signature) || 0) + 1));
+    return [...m.entries()].map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [alerts]);
+
+  /* Most severe, then newest — what an analyst should look at first. */
+  const priority = useMemo(() => {
+    return [...alerts]
+      .filter((a) => !isObservation(a))
+      .filter((a) => (a.status || "new").toLowerCase() !== "resolved")
+      .sort((a, b) => {
+        const s = (SEV_ORDER[(a.severity_label || "").toLowerCase()] ?? 9)
+                - (SEV_ORDER[(b.severity_label || "").toLowerCase()] ?? 9);
+        if (s !== 0) return s;
+        return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+      })
+      .slice(0, 8);
+  }, [alerts]);
+
+  const reporting = ENGINES.filter((e) => stats.engines.has(e));
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <h1 className="page-title">Dashboard Overview</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: '0.8rem', color: backendStatus.startsWith('✅') ? '#22c55e' : '#f59e0b' }}>
-            {backendStatus}
-          </span>
-          <button onClick={fetchData}
-            style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 6, color: 'var(--text-muted)', padding: '0.35rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <FiRefreshCw /> Refresh
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Overview"
+        subtitle={
+          lastLoaded
+            ? `Snapshot of stored alerts, loaded ${lastLoaded.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Data refreshes when you reload or press refresh — it does not stream.`
+            : "Snapshot of stored alerts. Data refreshes when you reload or press refresh — it does not stream."
+        }
+        actions={
+          <Button onClick={fetchData} loading={loading}>
+            <Icon.refresh /> Refresh
+          </Button>
+        }
+      />
 
-      <div className="summary-cards">
-        <div className="card card-total">
-          <span className="card-icon">!</span>
-          <div className="card-label">Total Alerts</div>
-          <hr style={{ borderColor: 'var(--border-color)', opacity: 0.2 }} />
-          <div className="card-value">{loading ? '…' : total}</div>
+      {/* Operational summary as a single band rather than four floating
+          cards — it reads as one statement about the queue. */}
+      <dl className="triage">
+        <div className="triage__cell triage__cell--urgent">
+          <dt>Awaiting triage</dt>
+          <dd className="triage__num">{loading ? "—" : stats.needsTriage}</dd>
+          <dd className="triage__hint">Not yet resolved</dd>
         </div>
-        <div className="card card-high">
-          <span className="card-icon">!</span>
-          <div className="card-label">High Severity</div>
-          <hr style={{ borderColor: 'var(--border-color)', opacity: 0.2 }} />
-          <div className="card-value">{loading ? '…' : high}</div>
+        <div className="triage__cell triage__cell--high">
+          <dt>High, unresolved</dt>
+          <dd className="triage__num">{loading ? "—" : stats.highOpen}</dd>
+          <dd className="triage__hint">Highest severity open</dd>
         </div>
-        <div className="card card-medium">
-          <span className="card-icon">!</span>
-          <div className="card-label">Medium Severity</div>
-          <hr style={{ borderColor: 'var(--border-color)', opacity: 0.2 }} />
-          <div className="card-value">{loading ? '…' : medium}</div>
+        <div className="triage__cell">
+          <dt>Engines reporting</dt>
+          <dd className="triage__num">
+            {loading ? "—" : `${reporting.length}/${ENGINES.length}`}
+          </dd>
+          <dd className="triage__hint">Produced stored alerts</dd>
         </div>
-        <div className="card card-low">
-          <span className="card-icon">!</span>
-          <div className="card-label">Low Severity</div>
-          <hr style={{ borderColor: 'var(--border-color)', opacity: 0.2 }} />
-          <div className="card-value">{loading ? '…' : low}</div>
+        <div className="triage__cell">
+          <dt>Records stored</dt>
+          <dd className="triage__num">{loading ? "—" : stats.total}</dd>
+          <dd className="triage__hint">
+            {loading
+              ? "In this snapshot"
+              : `${stats.detections} detection${stats.detections === 1 ? "" : "s"}, ${stats.observations} context`}
+          </dd>
         </div>
-      </div>
+      </dl>
 
-      <div className="trends-distribution-row">
-        <div className="trends-card" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-          <div className="trends-header">
-            <span style={{ color: 'var(--text-main)' }}>Threat Trends</span>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {[['bar','Bar'],['radar','Line'],['scatter','Scatter']].map(([v,l]) => (
-                <ChartTypeBtn key={v} active={trendsChartType === v} onClick={() => setTrendsChartType(v)} label={l} />
-              ))}
-            </div>
-          </div>
-          <TrendsChart alerts={alerts} chartType={trendsChartType} />
-        </div>
-        <div className="distribution-card" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-          <div className="distribution-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-main)' }}>
-            <span>Alerts Distribution</span>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {[['donut','Donut'],['pie','Pie'],['bar','Bar']].map(([v,l]) => (
-                <ChartTypeBtn key={v} active={distChartType === v} onClick={() => setDistChartType(v)} label={l} />
-              ))}
-            </div>
-          </div>
-          <DistributionChart high={high} medium={medium} low={low} chartType={distChartType} />
-        </div>
-      </div>
+      {error && <ErrorState onRetry={fetchData}>{error}</ErrorState>}
 
-      <div className="recent-alerts-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <h2 style={{ color: 'var(--text-main)', margin: 0 }}>Recent Alerts</h2>
-          <Link to="/alerts" style={{ color: 'var(--accent-primary)', fontSize: '0.85rem', textDecoration: 'none' }}>
-            View all alerts →
-          </Link>
-        </div>
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>Loading alerts…</p>
-        ) : alerts.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>
-            No alerts found. Run <code>eve_ingestor.py</code> to ingest sample data.
-          </p>
-        ) : (
-          <>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="alerts-table">
-                <thead>
-                  <tr>
-                    <th>Severity</th>
-                    <th>Alert Type</th>
-                    <th>Source IP</th>
-                    <th>Destination IP</th>
-                    <th>Protocol</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                    <th>View</th>
-                    <th>Telegram</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {alerts.slice((alertPage - 1) * ALERTS_PER_PAGE, alertPage * ALERTS_PER_PAGE).map((alert) => (
-                    <tr key={alert.id}>
-                      <td><span className={`severity-badge ${alert.severity_label}`}>{alert.severity_label}</span></td>
-                      <td style={{ color: 'var(--text-main)', textTransform: 'capitalize' }}>{alert.signature}</td>
-                      <td style={{ fontFamily: 'monospace', color: 'var(--accent-primary)' }}>{alert.src_ip}</td>
-                      <td style={{ fontFamily: 'monospace', color: 'var(--text-main)' }}>{alert.dest_ip}</td>
-                      <td style={{ color: 'var(--text-main)' }}>{alert.proto}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
-                      </td>
-                      <td><span className={`progress-badge ${alert.status}`}>{alert.status}</span></td>
-                      <td>
-                        <button className="view-btn" onClick={() => handleViewAlert(alert)} title="View details">
-                          <FiEye />
-                        </button>
-                      </td>
-                      <td>
-                        <button className="telegram-btn" onClick={() => sendTelegramMessage(alert)}>Send</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pagination" style={{ marginTop: '0.75rem' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                Showing {alerts.length === 0 ? 0 : (alertPage - 1) * ALERTS_PER_PAGE + 1}–{Math.min(alertPage * ALERTS_PER_PAGE, alerts.length)} of {alerts.length} alerts
-              </p>
-              <div className="pages">
-                <button
-                  className="page-nav"
-                  onClick={() => setAlertPage(p => p - 1)}
-                  disabled={alertPage === 1}
-                >‹</button>
-                {Array.from({ length: Math.ceil(alerts.length / ALERTS_PER_PAGE) }, (_, i) => i + 1).map(page => (
-                  <button
-                    key={page}
-                    className={`page-number ${page === alertPage ? 'active' : ''}`}
-                    onClick={() => setAlertPage(page)}
-                  >{page}</button>
-                ))}
-                <button
-                  className="page-nav"
-                  onClick={() => setAlertPage(p => p + 1)}
-                  disabled={alertPage === Math.ceil(alerts.length / ALERTS_PER_PAGE)}
-                >›</button>
+      {!error && (
+        <div className="ui-enter">
+          {/* The queue is the product, so it leads the page and takes the
+              wider column. The rail beside it summarises the same set. */}
+          <div className="dash-split">
+            <section className="ops" aria-labelledby="dash-priority-h">
+              <div className="ops__head">
+                <h2 className="ops__title" id="dash-priority-h">Needs attention</h2>
+                <span className="ops__meta">
+                  <Link to="/alerts" className="ui-btn ui-btn--ghost ui-btn--sm">
+                    All alerts <Icon.chevron />
+                  </Link>
+                </span>
               </div>
-            </div>
-          </>
-        )}
-      </div>
 
-      <footer className="footer" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)' }}>
-        <p>© 2026 Intrusion Detection Dashboard</p>
-      </footer>
+              {loading ? (
+                <div className="queue"><LoadingRows rows={6} label="Loading alerts" /></div>
+              ) : priority.length === 0 ? (
+                <div className="ops-empty">
+                  <span className="ops-empty__icon" aria-hidden="true"><Icon.inbox /></span>
+                  <div>
+                    <p className="ops-empty__title">Nothing awaiting triage</p>
+                    <p className="ops-empty__text">
+                      Every stored alert has been resolved. New alerts appear here as engines report them.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <ul className="queue">
+                  {priority.map((a) => (
+                    <li key={a.id} className={`q q--${(a.severity_label || "").toLowerCase()}`}>
+                      <button
+                        type="button"
+                        className="q__open"
+                        onClick={() => navigate(`/alert/${a.id}`, { state: { alert: a } })}
+                      >
+                        <span className="q__sev">{a.severity_label || "—"}</span>
+
+                        <span className="q__body">
+                          <span className="q__sig">{a.signature || "Unnamed event"}</span>
+                          <span className="q__flow ui-mono">
+                            {sourceOf(a) || "—"}
+                            <span className="q__arrow" aria-hidden="true">→</span>
+                            {destOf(a) || "—"}
+                            {a.dest_port ? <span className="q__port">:{a.dest_port}</span> : null}
+                            {a.proto ? <span className="q__proto">{a.proto}</span> : null}
+                          </span>
+                        </span>
+
+                        <span className="q__side">
+                          <EngineBadge engine={a.source_nids} />
+                          <span className="q__meta">
+                            <StatusBadge status={a.status} />
+                            <span className="q__age ui-mono">{relTime(a.timestamp)}</span>
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <aside className="dash-rail">
+              <section className="ops" aria-labelledby="dash-sev-h">
+                <div className="ops__head">
+                  <h2 className="ops__title" id="dash-sev-h">Severity mix</h2>
+                </div>
+                <div className="rail">
+                  {loading
+                    ? <LoadingRows rows={2} label="Loading severity mix" />
+                    : <SeverityDonut counts={stats.counts} />}
+                </div>
+              </section>
+
+              {/* The multi-engine premise, stated from stored data rather
+                  than from configuration. Never a health check. */}
+              <section className="ops" aria-labelledby="dash-eng-h">
+                <div className="ops__head">
+                  <h2 className="ops__title" id="dash-eng-h">Engine coverage</h2>
+                </div>
+                <ul className="engrail">
+                  {ENGINES.map((e) => {
+                    const active = stats.engines.has(e);
+                    const count = alerts.filter(
+                      (a) => String(a.source_nids || "").toUpperCase() === e
+                    ).length;
+                    const share = alerts.length ? (count / alerts.length) * 100 : 0;
+                    return (
+                      <li
+                        key={e}
+                        className={`engrow engrow--${e.toLowerCase()}${active ? " is-active" : ""}`}
+                      >
+                        <EngineMark engine={e} />
+                        <span className="engrow__body">
+                          <span className="engrow__name">{e}</span>
+                          <span className="engrow__track" aria-hidden="true">
+                            <span className="engrow__fill" style={{ width: `${share}%` }} />
+                          </span>
+                        </span>
+                        <span className="engrow__count">{loading ? "—" : count}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="engrail__note">
+                  Reflects stored alerts, not a live health check.
+                </p>
+              </section>
+            </aside>
+          </div>
+
+          <section className="ops" aria-labelledby="dash-activity-h">
+            <div className="ops__head">
+              <h2 className="ops__title" id="dash-activity-h">Activity by hour</h2>
+              <span className="ops__meta">Bucketed by the hour the engine reported</span>
+            </div>
+            <div className="chartpanel">
+              {loading
+                ? <LoadingRows rows={2} label="Loading activity" />
+                : <ActivityChart alerts={alerts} />}
+            </div>
+          </section>
+
+          <div className="dash-grid dash-grid--even">
+            <TopList
+              title="Most frequent sources"
+              hint="Addresses appearing across the most stored alerts."
+              items={loading ? [] : topSources}
+              emptyText={loading ? "Loading…" : "No source addresses recorded."}
+            />
+            <TopList
+              title="Most frequent signatures"
+              hint="Rules firing most often across stored alerts."
+              items={loading ? [] : topSignatures}
+              emptyText={loading ? "Loading…" : "No signatures recorded."}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -1,7 +1,34 @@
 import React, { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Icon } from "../../components/ui";
+import "../../styles/shell.css";
+import "./admin.css";
 
 const readUser = () => JSON.parse(localStorage.getItem("user") || "{}");
+
+/* Grouped so the sidebar reads as an information architecture rather than a
+   flat list: what you look at, what you configure, and who you are. */
+const NAV_GROUPS = [
+  {
+    label: "Overview",
+    items: [{ to: "/admin", label: "Dashboard", icon: "grid", end: true }],
+  },
+  {
+    label: "Administration",
+    items: [
+      { to: "/admin/users", label: "User Management", icon: "users" },
+      { to: "/admin/log-management", label: "Log Sources", icon: "plug" },
+      { to: "/admin/maintenance", label: "Maintenance", icon: "database" },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { to: "/admin/settings", label: "Appearance", icon: "sliders" },
+      { to: "/admin/profile", label: "Profile", icon: "user" },
+    ],
+  },
+];
 
 function AdminSidebar() {
   const navigate = useNavigate();
@@ -19,79 +46,76 @@ function AdminSidebar() {
   }, []);
 
   const adminName = user.full_name || "Administrator";
-  const adminEmail = user.email || "";
-
-const navItems = [
-  { path: "/admin", label: "Dashboard", end: true },
-  { path: "/admin/users", label: "User Management" },
-  { path: "/admin/maintenance", label: "Maintenance" },
-  { path: "/admin/log-management", label: "Log Management" },
-  { path: "/admin/settings", label: "Settings" },
-  { path: "/admin/profile", label: "Profile" },
-];
   const handleLogout = () => navigate("/logout");
 
   return (
-    <div className="admin-container">
-      <div className="admin-layout">
-        <aside className="admin-sidebar">
-          <div className="admin-logo">Intrusight</div>
+    <div className="shell">
+      <aside className="shell__side">
+        <NavLink to="/admin" end className="shell__brand">
+          <span className="shell__mark" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" strokeWidth="2.1"
+                 strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3 5 6v5.5c0 4.3 2.9 8.3 7 9.5 4.1-1.2 7-5.2 7-9.5V6z" />
+              <path d="M9.5 12.2 11.4 14l3.3-3.6" />
+            </svg>
+          </span>
+          <span className="shell__wordmark">
+            <span className="shell__name">IntruSight</span>
+            <span className="shell__scope">Administration</span>
+          </span>
+        </NavLink>
 
-          <nav className="admin-nav">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.end}
-                className={({ isActive }) =>
-                  `admin-nav-item${isActive ? " active" : ""}`
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-
-          <div className="admin-footer">
-            <div className="admin-user-card">
-              <div className="admin-avatar">
-                {adminName.charAt(0).toUpperCase()}
-              </div>
-
-              <div className="admin-user-info">
-                <span className="admin-user-name">{adminName}</span>
-                <span className="admin-user-email">{adminEmail}</span>
-              </div>
+        <nav className="shell__nav" aria-label="Administration">
+          {NAV_GROUPS.map((group) => (
+            <div className="shell__group" key={group.label}>
+              <p className="shell__grouplabel">{group.label}</p>
+              <ul className="shell__list">
+                {group.items.map((item) => {
+                  const Glyph = Icon[item.icon];
+                  return (
+                    <li key={item.to}>
+                      <NavLink
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                          `shell__link${isActive ? " is-active" : ""}`
+                        }
+                      >
+                        <Glyph />
+                        {item.label}
+                      </NavLink>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
+          ))}
+        </nav>
 
-            <button className="admin-logout-btn" onClick={handleLogout} type="button">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ flexShrink: 0 }}
-              >
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              Logout
-            </button>
-          </div>
-        </aside>
+        <div className="shell__foot">
+          <NavLink to="/admin/profile" className="shell__account">
+            <span className="shell__avatar" aria-hidden="true">
+              {adminName.charAt(0).toUpperCase()}
+            </span>
+            <span className="shell__who">
+              <span className="shell__whoname">{adminName}</span>
+              <span className="shell__whorole">Administrator</span>
+            </span>
+          </NavLink>
 
-        <main className="admin-main">
-          <div className="admin-content">
-            <Outlet />
-          </div>
-        </main>
-      </div>
+          <button className="shell__logout" onClick={handleLogout} type="button">
+            <Icon.logout />
+            Log out
+          </button>
+        </div>
+      </aside>
+
+      <main className="shell__main">
+        <div className="shell__content">
+          <Outlet />
+        </div>
+      </main>
     </div>
   );
 }

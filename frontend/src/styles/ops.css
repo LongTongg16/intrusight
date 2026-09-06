@@ -1,0 +1,186 @@
+/* ═══════════════════════════════════════════════════════════════
+   OPERATIONS SURFACES
+
+   Deliberately NOT "every section is a rounded white card". Each
+   conceptual area gets the composition its information deserves:
+
+     .ops       a bordered section with a titled rule — the container
+     .dbstate   split status band + data strip   (database state)
+     .bk        split pane: action | list        (backup & recovery)
+     .danger    contained danger zone            (destructive actions)
+     .tl        timeline                         (activity)
+
+   These are shared by the admin operational pages.
+   ═══════════════════════════════════════════════════════════════ */
+
+.ops {
+  margin-bottom: var(--space-6);
+}
+
+/* A titled rule rather than a card header: the section reads as a band
+   of the page, not a floating object. */
+.ops__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* A head used outside an .ops wrapper still needs separation from whatever
+   precedes it. */
+* + .ops__head { margin-top: var(--space-5); }
+.ops > .ops__head:first-child { margin-top: 0; }
+
+.ops__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: var(--text-strong);
+}
+
+.ops__title svg { color: var(--feedback-warning); }
+
+/* The rule fills whatever space the title and meta leave. */
+.ops__head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.ops__meta {
+  order: 3;
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+  white-space: nowrap;
+}
+
+/* ── Compact empty state ─────────────────────────────────────────
+   A row, not a hero. Zero-data views are the common case in this
+   project, so they must not each claim a third of the screen. */
+.ops-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.ops-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  color: var(--text-muted-c);
+}
+
+.ops-empty__title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.ops-empty__text {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted-c);
+  line-height: 1.45;
+}
+
+
+/* ── Triage band: one strip of cells, not four cards ─────────── */
+.triage {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 0 var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm), var(--edge);
+  overflow: hidden;
+}
+
+.triage__cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-4) var(--space-5);
+  border-right: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.triage__cell:last-child { border-right: none; }
+
+/* Only the two cells that describe outstanding work carry a rail. */
+.triage__cell--urgent::before,
+.triage__cell--high::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--severity-high);
+}
+
+.triage__cell dt {
+  font-size: var(--fs-2xs);
+  font-weight: 650;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+}
+
+.triage__num {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: var(--track-tight);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.triage__cell--urgent .triage__num,
+.triage__cell--high .triage__num { color: var(--severity-high); }
+
+.triage__hint { margin: 0; font-size: var(--fs-2xs); color: var(--text-muted-c); }
+
+
+/* ── Settings surface (shared by both roles) ─────────────────── */
+.settings-panel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.settings-panel__hint {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+/* At narrow widths the title, the connecting rule and the meta/action cannot
+   share one line. The head wraps and the rule collapses rather than pushing
+   the action past the viewport. */
+@media (max-width: 560px) {
+  .ops__head { flex-wrap: wrap; align-items: center; }
+  .ops__head::after { flex-basis: 100%; order: 4; }
+  .ops__meta { order: 2; margin-left: auto; }
+}

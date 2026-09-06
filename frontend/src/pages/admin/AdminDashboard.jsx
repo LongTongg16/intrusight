@@ -1,219 +1,363 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
+import {
+  PageHeader, Button, Icon, SeverityBadge, StatusBadge,
+  EngineBadge, EngineMark, EmptyState, ErrorState, LoadingRows, Notice, relTime,
+  sourceOf, destOf,
+} from "../../components/ui";
 import "./admin.css";
 
-const styles = {
-  content: { padding: "24px", display: "flex", flexDirection: "column", gap: "24px" },
-  sectionLabel: { fontSize: "0.9rem", fontWeight: "700", textTransform: "uppercase", color: "var(--admin-secondary)", marginBottom: "16px" },
-  tableSection: { background: "var(--admin-card)", border: "1px solid var(--admin-border)", borderRadius: "10px", overflow: "hidden" },
-  tableHeaderSection: { padding: "20px 24px", borderBottom: "1px solid var(--admin-border)" },
-  tableTitle: { margin: 0, fontSize: "1.1rem", fontWeight: "600" },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { padding: "12px 24px", textAlign: "left", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--admin-secondary)", borderBottom: "1px solid var(--admin-border)" },
-  tr: { borderBottom: "1px solid var(--admin-border)" },
-  td: { padding: "16px 24px", fontSize: "0.85rem" }
-};
-
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
-
-const getAuthHeader = () => ({
+const authHeader = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
 });
 
-const SEVERITY_ORDER  = { high: 0, medium: 1, low: 2 };
-const SEVERITY_COLORS = { high: "#f97316", medium: "#eab308", low: "#3b82f6" };
-const SEVERITY_LABELS  = ["high", "medium", "low"];
-const SEVERITY_DISPLAY = { high: "High", medium: "Medium", low: "Low" };
+const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
+const SEVERITIES = ["high", "medium", "low"];
+const ENGINES = ["Suricata", "Snort", "Zeek", "Kismet"];
+const PAGE_SIZE = 10;
 
-// ── Sub-components ────────────────────────────────────────────
-function SummaryCard({ label, value, sub, color }) {
-  return (
-    <div className="admin-card" style={{ flex: 1, minWidth: "200px", padding: "20px 24px" }}>
-      <div style={{ fontSize: "0.78rem", color: "var(--admin-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontSize: "2rem", fontWeight: "700", color: color || "var(--admin-text)", lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: "0.75rem", color: "var(--admin-secondary)", marginTop: "6px" }}>{sub}</div>}
-    </div>
-  );
-}
+const fmtTime = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString([], {
+    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+  });
+};
 
-function SeverityBar({ label, count, max, color }) {
-  const pct = max > 0 ? (count / max) * 100 : 0;
-  return (
-    <div style={{ marginBottom: "14px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-        <span style={{ fontSize: "0.82rem", color: "var(--admin-secondary)" }}>{label}</span>
-        <span style={{ fontSize: "0.82rem", color, fontWeight: "600" }}>{count}</span>
-      </div>
-      <div style={{ background: "var(--admin-border)", borderRadius: "4px", height: "6px" }}>
-        <div style={{ width: `${pct}%`, background: color, borderRadius: "4px", height: "6px", transition: "width 0.4s ease" }} />
-      </div>
-    </div>
-  );
-}
-
-// ── Main Component ────────────────────────────────────────────────────────────
-function AdminDashboard({ logs: logsProp = [], onRefreshLogs }) {
-  const [alerts, setAlerts]           = useState([]);
-  const [summary, setSummary]         = useState({ total: 0, severity_summary: { high: 0, medium: 0, low: 0 } });
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [logs, setLogs]               = useState(logsProp);
-  const PAGE_SIZE = 10;
-
-  useEffect(() => { setLogs(logsProp); }, [logsProp]);
+function AdminDashboard() {
+  const [alerts, setAlerts] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [logsUnavailable, setLogsUnavailable] = useState(false);
+  const [page, setPage] = useState(1);
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    setLogsUnavailable(false);
     try {
-      setLoading(true);
-      setError(null);
-      const [alertsRes, summaryRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/alerts`, getAuthHeader()),
-        axios.get(`${API_BASE}/api/alerts/dashboard/summary`, getAuthHeader()),
+      // Each leg degrades independently: a failing log-source lookup should
+      // not blank the alert overview, and vice versa.
+      const [alertsRes, logsRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/alerts`, authHeader()),
+        axios.get(`${API_BASE}/api/logs`, authHeader()).catch(() => null),
       ]);
-      
-      setAlerts(alertsRes.data.items || alertsRes.data || []);
-      setSummary(summaryRes.data || { total: 0, severity_summary: { high: 0, medium: 0, low: 0 } });
-      setCurrentPage(1);
-    } catch (err) {
-      console.error("Dashboard Fetch Error:", err);
-      setError("Server Error (500): Failed to load dashboard data.");
+      setAlerts(alertsRes.data.items ?? alertsRes.data ?? []);
+      if (logsRes) setLogs(logsRes.data.items ?? logsRes.data ?? []);
+      else { setLogs([]); setLogsUnavailable(true); }
+      setPage(1);
+    } catch {
+      setError("Could not load alert data from the API.");
+      setAlerts([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-    if (typeof onRefreshLogs === "function") onRefreshLogs();
-  }, [fetchData, onRefreshLogs]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const nidsServices = ["Suricata", "Snort", "Zeek", "Kismet"];
-  const nidsStatus = nidsServices.map((serviceName) => {
-    const match = logs?.find((log) => log.name?.toLowerCase().includes(serviceName.toLowerCase()));
+  /* Severity counts are derived here rather than from the summary endpoint so
+     the figures always agree with the table rendered below them. */
+  const severityCounts = useMemo(() => {
+    const c = { high: 0, medium: 0, low: 0 };
+    alerts.forEach((a) => {
+      const k = (a.severity_label || "").toLowerCase();
+      if (k in c) c[k] += 1;
+    });
+    return c;
+  }, [alerts]);
+
+  const severityTotal = SEVERITIES.reduce((n, sev) => n + severityCounts[sev], 0);
+
+  /* A log source's `status` is a configuration flag an administrator sets.
+     It is NOT a health probe — the backend never contacts the sensor — so it
+     is described as "enabled/disabled", never "running/stopped". */
+  const sources = useMemo(() => ENGINES.map((name) => {
+    const match = logs?.find((l) => l.name?.toLowerCase().includes(name.toLowerCase()));
     return {
-      name: serviceName,
-      status: match?.status === "Active" ? "running" : "stopped",
+      name,
+      configured: Boolean(match),
+      enabled: match?.status === "Active",
+      host: match?.host || match?.path || null,
+      // Transport recorded on the stored configuration, e.g. "File based · JSON".
+      transport: match ? [match.type, match.logType].filter(Boolean).join(" · ") : "",
     };
-  });
+  }), [logs]);
 
-  const activeCount  = nidsStatus.filter((s) => s.status === "running").length;
-  const stoppedCount = nidsStatus.filter((s) => s.status === "stopped").length;
-  const severityCounts   = summary?.severity_summary || { high: 0, medium: 0, low: 0 };
-  const maxSeverityCount = Math.max(...Object.values(severityCounts), 1);
+  const enabledCount = sources.filter((s) => s.enabled).length;
 
-  const categoryCounts = alerts.reduce((acc, a) => {
-    if (a.category) acc[a.category] = (acc[a.category] || 0) + 1;
-    return acc;
-  }, {});
+  const categories = useMemo(() => {
+    const m = new Map();
+    alerts.forEach((a) => a.category && m.set(a.category, (m.get(a.category) || 0) + 1));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [alerts]);
 
-  const topCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0];
+  const topCategory = categories[0] || null;
 
-  const sortedAlerts = [...alerts].sort((a, b) => {
-    const sevDiff = (SEVERITY_ORDER[a.severity_label] ?? 99) - (SEVERITY_ORDER[b.severity_label] ?? 99);
-    if (sevDiff !== 0) return sevDiff;
-    return new Date(b.created_at) - new Date(a.created_at);
-  });
+  const sorted = useMemo(() => [...alerts].sort((a, b) => {
+    const s = (SEVERITY_ORDER[a.severity_label] ?? 9) - (SEVERITY_ORDER[b.severity_label] ?? 9);
+    if (s !== 0) return s;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  }), [alerts]);
 
-  const formatTime = (iso) => {
-    if (!iso) return "—";
-    try {
-      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    } catch { return iso; }
-  };
-
-  const pagedAlerts = sortedAlerts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paged = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
 
   return (
-    <div className="admin-page" style={styles.content}>
-      <div className="admin-section-label" style={styles.sectionLabel}>System Status</div>
-      
-      {loading ? (
-        <div style={{ color: "var(--admin-secondary)", padding: "40px", textAlign: "center" }}>
-          Loading Dashboard Data...
-        </div>
-      ) : error ? (
-        <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "20px", marginBottom: "20px" }}>
-          <span style={{ color: "#dc2626", fontWeight: "600" }}>⚠️ {error}</span>
-          <button onClick={fetchData} style={{ marginLeft: "15px", padding: "5px 12px", borderRadius: "4px", cursor: "pointer" }}>Retry Connection</button>
-        </div>
-      ) : null}
+    <>
+      <PageHeader
+        title="Administration"
+        subtitle="Configuration and stored-data overview. IntruSight does not probe sensors — everything here reflects what has been configured and what has been ingested."
+        actions={
+          <Button onClick={fetchData} loading={loading}>
+            <Icon.refresh /> Refresh
+          </Button>
+        }
+      />
 
-      <div style={{ display: "flex", gap: "16px", marginBottom: "28px", flexWrap: "wrap" }}>
-        <SummaryCard label="Total Alerts" value={summary.total || 0} sub="All time" />
-        <SummaryCard label="High Severity" value={severityCounts.high || 0} sub="Requires immediate attention" color="#f97316" />
-        <SummaryCard 
-          label="Active NIDS Services" 
-          value={`${activeCount} / ${nidsServices.length}`} 
-          sub={stoppedCount > 0 ? `${stoppedCount} service(s) stopped` : "All services running"}
-          color={activeCount === nidsServices.length ? "#10b981" : "#f97316"}
-        />
-        <SummaryCard label="Top Threat" value={topCategory ? topCategory[0] : "—"} sub={topCategory ? `${topCategory[1]} alert(s)` : "No alerts"} color="#a78bfa" />
-      </div>
+      {error && <ErrorState onRetry={fetchData}>{error}</ErrorState>}
 
-      <div style={{ display: "flex", gap: "16px", marginBottom: "28px", flexWrap: "wrap" }}>
-        <div className="admin-card" style={{ flex: 1, minWidth: "250px", padding: "20px" }}>
-          <div className="admin-section-label" style={styles.sectionLabel}>Service Health</div>
-          {nidsStatus.map((service) => (
-            <div key={service.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", background: "var(--admin-bg)", borderRadius: "8px", marginBottom: "8px" }}>
-              <span style={{ color: "var(--admin-text)", fontSize: "0.85rem" }}>{service.name}</span>
-              <span style={{ fontSize: "0.75rem", color: service.status === "running" ? "#10b981" : "#ef4444", fontWeight: "bold" }}>{service.status.toUpperCase()}</span>
+      {!error && (
+        <>
+          <dl className="triage">
+            <div className="triage__cell">
+              <dt>Alerts stored</dt>
+              <dd className="triage__num">{loading ? "—" : alerts.length}</dd>
+              <dd className="triage__hint">Across every engine</dd>
             </div>
-          ))}
-        </div>
+            <div className="triage__cell triage__cell--high">
+              <dt>High severity</dt>
+              <dd className="triage__num">{loading ? "—" : severityCounts.high}</dd>
+              <dd className="triage__hint">Of the stored set</dd>
+            </div>
+            <div className="triage__cell">
+              <dt>Sources enabled</dt>
+              <dd className="triage__num">
+                {loading ? "—" : `${enabledCount}/${ENGINES.length}`}
+              </dd>
+              <dd className="triage__hint">Configuration state</dd>
+            </div>
+            <div className="triage__cell">
+              <dt>Distinct categories</dt>
+              <dd className="triage__num">{loading ? "—" : categories.length}</dd>
+              <dd className="triage__hint">
+                {topCategory ? `Most common: ${topCategory[0]}` : "None recorded"}
+              </dd>
+            </div>
+          </dl>
 
-        <div className="admin-card" style={{ flex: 1, minWidth: "250px", padding: "20px" }}>
-          <div className="admin-section-label" style={styles.sectionLabel}>Severity Distribution</div>
-          {SEVERITY_LABELS.map((sev) => (
-            <SeverityBar key={sev} label={SEVERITY_DISPLAY[sev]} count={severityCounts[sev] || 0} max={maxSeverityCount} color={SEVERITY_COLORS[sev]} />
-          ))}
-        </div>
-      </div>
+          <div className="admin-grid">
+            <section className="ops" aria-labelledby="admin-sources">
+              <div className="ops__head">
+                <h2 className="ops__title" id="admin-sources">Log sources</h2>
+                <span className="ops__meta">
+                  <Link to="/admin/log-management" className="ui-btn ui-btn--ghost ui-btn--sm">
+                    Manage <Icon.chevron />
+                  </Link>
+                </span>
+              </div>
+              <div className="srcpanel">
+                <p className="srcpanel__note">
+                  Whether each engine is configured and enabled for ingestion.
+                  This is configuration state, not sensor health.
+                </p>
 
-      <div className="admin-card" style={styles.tableSection}>
-        <div style={styles.tableHeaderSection}>
-          <h3 style={styles.tableTitle}>Recent Network Events</h3>
-        </div>
+                {logsUnavailable && (
+                  <Notice tone="warning" className="admin-notice">
+                    Log-source configuration could not be loaded, so the states below are unknown.
+                  </Notice>
+                )}
 
-        {sortedAlerts.length === 0 && !loading ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "var(--admin-secondary)" }}>
-            No alerts found in database.
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  {["Time","Severity","Signature","Source IP","Dest IP","Status"].map((h) => (
-                    <th key={h} style={styles.th}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pagedAlerts.map((alert, index) => (
-                  <tr key={alert.id || index} style={styles.tr}>
-                    <td style={styles.td}>{formatTime(alert.created_at)}</td>
-                    <td style={styles.td}>
-                      <span style={{ 
-                        padding: "2px 8px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: "bold",
-                        background: (SEVERITY_COLORS[alert.severity_label] || "#444") + "22",
-                        color: SEVERITY_COLORS[alert.severity_label] || "#444"
-                      }}>
-                        {alert.severity_label?.toUpperCase() || "LOW"}
+                <ul className="src-list">
+                  {sources.map((s) => {
+                    const state = logsUnavailable
+                      ? "unknown"
+                      : !s.configured
+                        ? "absent"
+                        : s.enabled ? "on" : "off";
+                    const label = { unknown: "Unknown", absent: "Not configured",
+                                    on: "Enabled", off: "Disabled" }[state];
+                    return (
+                      <li key={s.name} className={`src src--${state}`}>
+                        <EngineMark engine={s.name} />
+                        <span className="src__body">
+                          <span className="src__name">{s.name}</span>
+                          <span className="src__meta">{s.transport || "No configuration stored"}</span>
+                        </span>
+                        <span className="src__state">
+                          <span className="src__dot" aria-hidden="true" />
+                          {label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </section>
+
+            <div className="admin-rail">
+            <section className="ops" aria-labelledby="admin-sev">
+              <div className="ops__head">
+                <h2 className="ops__title" id="admin-sev">Severity</h2>
+              </div>
+              <div className="srcpanel">
+                {severityTotal === 0 ? (
+                  <p className="sevdist__empty">
+                    {loading ? "Loading severity mix…" : "No stored alerts to summarise yet."}
+                  </p>
+                ) : (
+                  <div className="sevdist">
+                    <div
+                      className="sevdist__bar"
+                      role="img"
+                      aria-label={SEVERITIES.map(
+                        (sev) => `${severityCounts[sev]} ${sev}`
+                      ).join(", ")}
+                    >
+                      {SEVERITIES.map((sev) =>
+                        severityCounts[sev] > 0 ? (
+                          <span
+                            key={sev}
+                            className={`sevdist__seg sevdist__seg--${sev}`}
+                            style={{ width: `${(severityCounts[sev] / severityTotal) * 100}%` }}
+                          />
+                        ) : null
+                      )}
+                    </div>
+                    <ul className="sevdist__rows">
+                      {SEVERITIES.map((sev) => (
+                        <li key={sev} className={`sevdist__row sevdist__row--${sev}`}>
+                          <span className="sevdist__dot" aria-hidden="true" />
+                          <span className="sevdist__name">{sev}</span>
+                          <span className="sevdist__share">
+                            {Math.round((severityCounts[sev] / severityTotal) * 100)}%
+                          </span>
+                          <span className="sevdist__count">{severityCounts[sev]}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="ops" aria-labelledby="admin-cat">
+              <div className="ops__head">
+                <h2 className="ops__title" id="admin-cat">Categories</h2>
+                <span className="ops__meta">{categories.length} distinct</span>
+              </div>
+              {categories.length === 0 ? (
+                <div className="ops-empty">
+                  <span className="ops-empty__icon" aria-hidden="true"><Icon.inbox /></span>
+                  <div>
+                    <p className="ops-empty__title">No categories recorded</p>
+                    <p className="ops-empty__text">Engines attach a category to each alert they report.</p>
+                  </div>
+                </div>
+              ) : (
+                <ul className="catlist">
+                  {categories.slice(0, 6).map(([name, count]) => (
+                    <li className="catrow" key={name}>
+                      <span className="catrow__name" title={name}>{name}</span>
+                      <span className="catrow__track" aria-hidden="true">
+                        <span
+                          className="catrow__fill"
+                          style={{ width: `${(count / categories[0][1]) * 100}%` }}
+                        />
                       </span>
-                    </td>
-                    <td style={{ ...styles.td, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>{alert.signature}</td>
-                    <td style={styles.td}>{alert.src_ip}</td>
-                    <td style={styles.td}>{alert.dest_ip}</td>
-                    <td style={styles.td}>{alert.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <span className="catrow__count">{count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+
+          <section className="ops" aria-labelledby="admin-recent">
+            <div className="ops__head">
+              <h2 className="ops__title" id="admin-recent">Stored alerts</h2>
+              <span className="ops__meta">Most severe first — the same records analysts triage</span>
+            </div>
+
+            {loading ? (
+              <LoadingRows rows={6} label="Loading alerts" />
+            ) : sorted.length === 0 ? (
+              <EmptyState icon="inbox" title="No alerts stored yet">
+                Run an ingestor for a configured engine to populate the database.
+              </EmptyState>
+            ) : (
+              <>
+                <div className="table-container">
+                  <div className="table-scroll">
+                    <table className="alerts-table altable">
+                      <caption className="visually-hidden">Stored alerts, most severe first</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Severity</th>
+                          <th scope="col">Event</th>
+                          <th scope="col">Connection</th>
+                          <th scope="col">Engine</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Ingested</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paged.map((a, i) => (
+                          <tr key={a.id || i} className={`altable__row altable__row--${(a.severity_label || "").toLowerCase()}`}>
+                            <td><SeverityBadge severity={a.severity_label} /></td>
+                            <td>
+                              <span className="altable__sig">{a.signature || "Unnamed event"}</span>
+                              {a.category && <span className="altable__cat">{a.category}</span>}
+                            </td>
+                            <td>
+                              <span className="altable__flow ui-mono">
+                                <span className="altable__ip">{sourceOf(a) || "—"}</span>
+                                <span className="altable__arrow" aria-hidden="true">→</span>
+                                <span className="altable__ip">{destOf(a) || "—"}</span>
+                                {a.dest_port ? <span className="altable__port">:{a.dest_port}</span> : null}
+                              </span>
+                              {a.proto && (
+                                <span className="altable__sub">
+                                  <span className="altable__proto">{a.proto}</span>
+                                </span>
+                              )}
+                            </td>
+                            <td><EngineBadge engine={a.source_nids} /></td>
+                            <td><StatusBadge status={a.status} /></td>
+                            <td className="altable__when">
+                              <span className="altable__age">{relTime(a.created_at)}</span>
+                              <span className="altable__abs ui-mono">{fmtTime(a.created_at)}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {totalPages > 1 && (
+                  <nav className="pagination" aria-label="Alert pages">
+                    <p>
+                      Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
+                    </p>
+                    <div className="pages">
+                      <button className="page-nav" onClick={() => setPage((p) => p - 1)} disabled={page === 1} aria-label="Previous page">‹</button>
+                      <span className="page-number active" aria-current="page">{page}</span>
+                      <button className="page-nav" onClick={() => setPage((p) => p + 1)} disabled={page === totalPages} aria-label="Next page">›</button>
+                    </div>
+                  </nav>
+                )}
+              </>
+            )}
+          </section>
+        </>
+      )}
+    </>
   );
 }
 

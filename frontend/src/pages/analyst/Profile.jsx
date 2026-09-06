@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import { changePassword } from "../../services/api";
+import { PageHeader } from "../../components/ui";
 import "./analyst.css";
 
 const API_BASE =
@@ -34,7 +36,6 @@ function getPasswordStrength(password) {
 const TABS = [
   { key: "PERSONAL", label: "Personal Info" },
   { key: "SECURITY", label: "Security Settings" },
-  { key: "NOTIF", label: "Notification Preferences" },
 ];
 
 function Profile() {
@@ -49,20 +50,13 @@ function Profile() {
     email: "",
     role: "",
     status: "active",
-    phone: "",
-    telegram_id: "",
   });
 
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
-    phone: "",
-    telegram_id: "",
   });
 
-  const [notifMobile, setNotifMobile] = useState(true);
-  const [notifTelegram, setNotifTelegram] = useState(true);
-  const [notifEmail, setNotifEmail] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     current: "",
@@ -99,8 +93,6 @@ function Profile() {
         setFormData({
           full_name: res.data.full_name || "",
           email: res.data.email || "",
-          phone: res.data.phone || "",
-          telegram_id: res.data.telegram_id || "",
         });
       } catch {
         showToast("Failed to load profile", "error");
@@ -121,8 +113,12 @@ function Profile() {
     setIsSaving(true);
 
     try {
-      await axios.put(`${API_BASE}/api/users/profile`, formData, getAuthHeader());
-      setUserData((prev) => ({ ...prev, ...formData }));
+      await axios.put(
+        `${API_BASE}/api/users/profile`,
+        { full_name: formData.full_name },
+        getAuthHeader()
+      );
+      setUserData((prev) => ({ ...prev, full_name: formData.full_name }));
       setEditing(false);
       showToast("Profile updated!");
     } catch (err) {
@@ -159,20 +155,13 @@ function Profile() {
     setIsPasswordSubmitting(true);
 
     try {
-      await axios.put(
-        `${API_BASE}/api/users/profile/password`,
-        {
-          current_password: passwordForm.current,
-          new_password: passwordForm.newPass,
-        },
-        getAuthHeader()
-      );
+      await changePassword(passwordForm.current, passwordForm.newPass);
 
       setShowPasswordModal(false);
       setPasswordForm({ current: "", newPass: "", confirm: "" });
       showToast("Password updated!");
     } catch (err) {
-      showToast(err.response?.data?.detail || "Update failed", "error");
+      showToast(err.message || "Update failed", "error");
     } finally {
       setIsPasswordSubmitting(false);
     }
@@ -196,13 +185,14 @@ function Profile() {
       <div style={s.page}>
         {toast && <div style={s.toast(toast.type)}>{toast.message}</div>}
 
-        <h1 className="page-title">Profile</h1>
-        <p style={s.headerSub}>Manage your account settings</p>
+        <PageHeader
+          title="Profile"
+          subtitle="Your account details and password. Only your full name can be changed here."
+        />
 
         <div style={s.heroCard}>
           <div style={s.avatar}>
             {initials}
-            <div style={s.onlineDot} />
           </div>
 
           <div>
@@ -241,24 +231,31 @@ function Profile() {
           {tab === "PERSONAL" && (
             <form onSubmit={handleSaveProfile}>
               <div style={s.inputGrid}>
-                {["full_name", "email", "phone", "telegram_id"].map((field) => (
-                  <div key={field} style={s.inputWrap}>
-                    <label style={s.label}>
-                      {field.replace("_", " ").toUpperCase()}
-                    </label>
-                    <input
-                      style={s.input(editing)}
-                      value={formData[field]}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          [field]: e.target.value,
-                        }))
-                      }
-                      readOnly={!editing}
-                    />
-                  </div>
-                ))}
+                <div style={s.inputWrap}>
+                  <label style={s.label} htmlFor="profile-full_name">
+                    FULL NAME
+                  </label>
+                  <input
+                    id="profile-full_name"
+                    style={s.input(editing)}
+                    value={formData.full_name}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, full_name: e.target.value }))
+                    }
+                    readOnly={!editing}
+                  />
+                </div>
+                <div style={s.inputWrap}>
+                  <label style={s.label} htmlFor="profile-email">
+                    EMAIL
+                  </label>
+                  <input
+                    id="profile-email"
+                    style={s.input(false)}
+                    value={formData.email}
+                    readOnly
+                  />
+                </div>
               </div>
 
               <div style={s.actionRow}>
@@ -281,8 +278,6 @@ function Profile() {
                           setFormData({
                             full_name: userData.full_name || "",
                             email: userData.email || "",
-                            phone: userData.phone || "",
-                            telegram_id: userData.telegram_id || "",
                           });
                         }}
                       >
@@ -311,49 +306,21 @@ function Profile() {
           )}
 
           {tab === "SECURITY" && (
-            <div style={s.inputGrid}>
-              <div style={s.inputWrap}>
-                <label style={s.label}>MFA</label>
-                <div style={s.mfaBox}>
-                  <input type="checkbox" defaultChecked />
-                  <span style={{ color: "var(--text-main)", fontSize: "0.9rem" }}>
-                    Enable multi-factor authentication
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {tab === "NOTIF" && (
             <div>
-              <div style={s.prefRow}>
-                {[
-                  ["Mobile Push", notifMobile, setNotifMobile],
-                  ["Telegram", notifTelegram, setNotifTelegram],
-                  ["Email", notifEmail, setNotifEmail],
-                ].map(([label, val, setter]) => (
-                  <label key={label} style={s.checkItem(val)}>
-                    <input
-                      type="checkbox"
-                      checked={val}
-                      onChange={(e) => setter(e.target.checked)}
-                      style={{ accentColor: "var(--accent-primary)" }}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-
-              <div style={s.divider} />
-
+              <p style={s.securityNote}>
+                Changing your password is the only account security control this
+                build implements. Multi-factor authentication is not available.
+              </p>
               <button
-                style={s.btnGreen}
-                onClick={() => showToast("Preferences saved!")}
+                type="button"
+                style={s.btnPrimary}
+                onClick={() => setShowPasswordModal(true)}
               >
-                Save Preferences
+                Change Password
               </button>
             </div>
           )}
+
         </div>
 
         {showPasswordModal && (
@@ -504,24 +471,15 @@ const s = {
     width: "76px",
     height: "76px",
     borderRadius: "50%",
-    background: "linear-gradient(135deg, var(--accent-primary), #8b5cf6)",
+    background: "var(--accent-muted)",
+    border: "1px solid color-mix(in srgb, var(--accent) 40%, transparent)",
+    color: "var(--accent)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: "1.7rem",
     fontWeight: 700,
-    color: "white",
     position: "relative",
-  },
-  onlineDot: {
-    position: "absolute",
-    bottom: "4px",
-    right: "4px",
-    width: "14px",
-    height: "14px",
-    borderRadius: "50%",
-    backgroundColor: "#10b981",
-    border: "2px solid var(--bg-card)",
   },
   badgeRow: {
     display: "flex",
@@ -544,11 +502,18 @@ const s = {
     marginBottom: "1.5rem",
   },
   tabs: {
-    display: "flex",
-    gap: "0.5rem",
-    borderBottom: "1px solid var(--border-color)",
-    paddingBottom: "0.75rem",
+    display: "inline-flex",
+    gap: "2px",
+    padding: "3px",
     marginBottom: "1.5rem",
+    // The wrapper is layout only. It used to carry a surface and border,
+    // which on the white-yellow theme resolved to #fffbeb on #fde68a and
+    // drew a pale bubble around the two pills. The border stays declared but
+    // transparent so the box model — and therefore the pills' position — is
+    // unchanged.
+    border: "1px solid transparent",
+    borderRadius: "var(--radius-md)",
+    background: "transparent",
     flexWrap: "wrap",
   },
   tabBtn: (active) => ({
@@ -592,14 +557,12 @@ const s = {
     borderTop: "1px solid var(--border-color)",
     paddingTop: "1.5rem",
   },
-  mfaBox: {
-    display: "flex",
-    gap: "0.6rem",
-    alignItems: "center",
-    padding: "0.75rem 0.9rem",
-    border: "1px solid var(--border-color)",
-    borderRadius: "8px",
-    backgroundColor: "var(--bg-main)",
+  securityNote: {
+    margin: "0 0 1.25rem",
+    maxWidth: "62ch",
+    color: "var(--text-muted)",
+    fontSize: "0.9rem",
+    lineHeight: 1.6,
   },
   prefRow: {
     display: "flex",
@@ -662,8 +625,8 @@ const s = {
     padding: "0.7rem 1.4rem",
     borderRadius: "8px",
     border: "none",
-    backgroundColor: "var(--accent-primary)",
-    color: "#fff",
+    backgroundColor: "var(--accent-solid)",
+    color: "var(--accent-on)",
     cursor: "pointer",
     fontWeight: 600,
   },

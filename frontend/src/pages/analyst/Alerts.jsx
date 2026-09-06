@@ -1,11 +1,67 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { FiEye, FiDownload, FiSearch, FiMap } from "react-icons/fi";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { refreshAllLocations } from "../../services/api";
+import {
+  PageHeader, Button, Notice, Icon, SeverityBadge, StatusBadge, EngineBadge,
+  FilterBar, SelectFilter, SearchFilter, EmptyState, ErrorState, LoadingRows, relTime,
+  KindBadge, isObservation, sourceOf, destOf, isMacRecord,
+} from "../../components/ui";
+import "./analyst.css";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE ||
-  "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
+/** Severity filter maps to the numeric `severity` the API expects. */
+const SEVERITY_PARAM = { High: "1", Medium: "2", Low: "3" };
+
+const SEVERITY_OPTIONS = [
+  { value: "", label: "All severities" },
+  { value: "High", label: "High" },
+  { value: "Medium", label: "Medium" },
+  { value: "Low", label: "Low" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "new", label: "New" },
+  { value: "investigating", label: "Investigating" },
+  { value: "resolved", label: "Resolved" },
+];
+
+/* The four engines IntruSight normalises, each contributing a different kind of
+   visibility. Filtering by engine is how an analyst compares those roles. */
+const ENGINE_OPTIONS = [
+  { value: "", label: "All engines" },
+  { value: "SURICATA", label: "Suricata — signatures" },
+  { value: "SNORT", label: "Snort — rules" },
+  { value: "ZEEK", label: "Zeek — network context" },
+  { value: "KISMET", label: "Kismet — wireless" },
+];
+
+/* A detection asserts a rule matched. An observation describes what was seen.
+   Separating them keeps context out of the triage count. */
+const KIND_OPTIONS = [
+  { value: "", label: "All records" },
+  { value: "detection", label: "Detections" },
+  { value: "observation", label: "Observations" },
+];
+
+const PER_PAGE = 12;
+
+const fmtDate = (ts) => {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    time: d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    date: d.toLocaleDateString([], { day: "2-digit", month: "short" }),
+  };
+};
+
+const locationLabel = (loc) => {
+  if (!loc) return null;
+  if (loc.city) return `${loc.city}, ${loc.country_name || loc.country || ""}`.replace(/,\s*$/, "");
+  return loc.country_name || loc.country || null;
+};
 
 const Alerts = () => {
   const navigate = useNavigate();
@@ -16,167 +72,97 @@ const Alerts = () => {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [engineFilter, setEngineFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [refreshingLocations, setRefreshingLocations] = useState(false);
-
-  const alertsPerPage = 5;
+  const [locationError, setLocationError] = useState("");
 
   const fetchAlerts = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-
-      let url = `${API_BASE}/api/alerts`;
       const params = new URLSearchParams();
-
-      if (severityFilter) {
-        if (severityFilter === "High") params.append("severity", "1");
-        if (severityFilter === "Medium") params.append("severity", "2");
-        if (severityFilter === "Low") params.append("severity", "3");
-      }
-
-      if (statusFilter) {
-        params.append("status", statusFilter.toLowerCase());
-      }
-
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
+      if (SEVERITY_PARAM[severityFilter]) params.append("severity", SEVERITY_PARAM[severityFilter]);
+      if (statusFilter) params.append("status", statusFilter);
+      const qs = params.toString();
 
       const token = localStorage.getItem("token");
-
-      const response = await fetch(url, {
-        headers: token
-          ? {
-              Authorization: `Bearer ${token}`,
-            }
-          : {},
+      const res = await fetch(`${API_BASE}/api/alerts${qs ? `?${qs}` : ""}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch alerts: HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
       setAlerts(data.items || []);
-    } catch (err) {
-      console.error("Fetch alerts failed:", err);
-      setError("Could not reach backend — showing no live data.");
+    } catch {
+      setError("Could not reach the API. No alerts loaded.");
       setAlerts([]);
     } finally {
       setLoading(false);
     }
   }, [severityFilter, statusFilter]);
 
-  useEffect(() => {
-    fetchAlerts();
-  }, [fetchAlerts]);
+  useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+  useEffect(() => { setPage(1); }, [search, severityFilter, statusFilter, engineFilter, kindFilter]);
 
-  const filteredAlerts = useMemo(() => {
-    return alerts.filter((alert) => {
-      const text =
-        `${alert.src_ip || ""} ${alert.dest_ip || ""} ${alert.signature || ""} ${alert.dest_port || ""} ${alert.proto || ""}`.toLowerCase();
-
-      return text.includes(search.toLowerCase());
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    // Searching only the IP fields missed Kismet entirely, and missed the
+    // engine-native detail (SSID, DNS name, TLS server name) that is the whole
+    // reason those records are here.
+    return alerts.filter((a) => {
+      if (engineFilter && String(a.source_nids || "").toUpperCase() !== engineFilter) return false;
+      if (kindFilter && (a.event_kind || "detection") !== kindFilter) return false;
+      if (!q) return true;
+      const context = Object.values(a.engine_context || {})
+        .filter((v) => typeof v === "string" || typeof v === "number")
+        .join(" ");
+      return [
+        sourceOf(a), destOf(a), a.signature, a.dest_port, a.proto,
+        a.source_nids, a.category, a.observation_type, context,
+      ].join(" ").toLowerCase().includes(q);
     });
-  }, [alerts, search]);
+  }, [alerts, search, engineFilter, kindFilter]);
 
-  const totalAlerts = filteredAlerts.length;
-  const totalPages = Math.max(1, Math.ceil(totalAlerts / alertsPerPage));
-
-  const highCount = alerts.filter(
-    (a) => (a.severity_label || "").toLowerCase() === "high"
-  ).length;
-
-  const mediumCount = alerts.filter(
-    (a) => (a.severity_label || "").toLowerCase() === "medium"
-  ).length;
-
-  const lowCount = alerts.filter(
-    (a) => (a.severity_label || "").toLowerCase() === "low"
-  ).length;
-
-  const getSeverityClass = (severity) => {
-    const value = (severity || "").toLowerCase();
-    if (value === "high") return "sev-high";
-    if (value === "medium") return "sev-medium";
-    return "sev-low";
-  };
-
-  const indexOfLastAlert = currentPage * alertsPerPage;
-  const indexOfFirstAlert = indexOfLastAlert - alertsPerPage;
-  const currentAlerts = filteredAlerts.slice(indexOfFirstAlert, indexOfLastAlert);
-
-  const getPageNumbers = () => {
-    const delta = 2;
-    const range = [];
-    const rangeWithDots = [];
-    let l;
-
-    for (let i = 1; i <= totalPages; i++) {
-      if (
-        i === 1 ||
-        i === totalPages ||
-        (i >= currentPage - delta && i <= currentPage + delta)
-      ) {
-        range.push(i);
-      }
-    }
-
-    range.forEach((i) => {
-      if (l) {
-        if (i - l === 2) {
-          rangeWithDots.push(l + 1);
-        } else if (i - l !== 1) {
-          rangeWithDots.push("...");
-        }
-      }
-      rangeWithDots.push(i);
-      l = i;
+  const counts = useMemo(() => {
+    // Observations carry the informational level because the shared scale has
+    // no "not graded" value. Counting them as low severity would inflate that
+    // bucket with records no engine ever assessed.
+    const c = { high: 0, medium: 0, low: 0, observations: 0 };
+    alerts.forEach((a) => {
+      if (isObservation(a)) { c.observations += 1; return; }
+      const k = (a.severity_label || "").toLowerCase();
+      if (k in c) c[k] += 1;
     });
+    return c;
+  }, [alerts]);
 
-    return rangeWithDots;
-  };
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const current = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const exportToCSV = () => {
-    const headers = [
-      "Severity",
-      "Alert Type",
-      "Source IP",
-      "Destination IP",
-      "Location",
-      "Port",
-      "IDS Source",
-      "Time",
-      "Status",
-    ];
+  const pageWindow = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const wanted = new Set([1, totalPages, page, page - 1, page + 1]);
+    const sorted = [...wanted].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+    return sorted.flatMap((p, i) => (i > 0 && p - sorted[i - 1] > 1 ? ["…", p] : [p]));
+  }, [page, totalPages]);
 
-    const rows = filteredAlerts.map((alert) => [
-      alert.severity_label || "",
-      alert.signature || "",
-      alert.src_ip || "",
-      alert.dest_ip || "",
-      alert.dest_location
-        ? alert.dest_location.city
-          ? `${alert.dest_location.city}, ${alert.dest_location.country}`
-          : alert.dest_location.country || ""
-        : "",
-      alert.dest_port || "",
-      alert.proto || "",
-      alert.timestamp || "",
-      alert.status || "",
+  const exportCSV = () => {
+    const headers = ["Record", "Type", "Severity", "Signature", "Source", "Destination",
+                     "Endpoint kind", "Location", "Port", "Protocol", "Engine", "Time", "Status"];
+    const rows = filtered.map((a) => [
+      a.event_kind || "detection",
+      a.observation_type || "",
+      isObservation(a) ? "" : (a.severity_label || ""),
+      a.signature || "", sourceOf(a) || "", destOf(a) || "",
+      a.asset_kind || "", locationLabel(a.dest_location) || "",
+      a.dest_port || "", a.proto || "",
+      a.source_nids || "", a.timestamp || "", a.status || "",
     ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a");
     link.href = url;
     link.setAttribute("download", "alerts_export.csv");
@@ -186,254 +172,215 @@ const Alerts = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleRefreshAllLocations = async () => {
+  const handleRefreshLocations = async () => {
     setRefreshingLocations(true);
+    setLocationError("");
     try {
       await refreshAllLocations();
       await fetchAlerts();
-    } catch (error) {
-      console.error("Failed to refresh locations:", error);
-      setError("Failed to refresh locations");
+    } catch {
+      setLocationError("Location lookup failed. Existing locations are unchanged.");
     } finally {
       setRefreshingLocations(false);
     }
   };
 
-  const showingFrom = totalAlerts === 0 ? 0 : indexOfFirstAlert + 1;
-  const showingTo = Math.min(indexOfLastAlert, totalAlerts);
+  const clearFilters = () => { setSearch(""); setSeverityFilter(""); setStatusFilter(""); };
+  const hasFilters = Boolean(search || severityFilter || statusFilter || engineFilter || kindFilter);
 
   return (
-    <main className="dashboard-main">
-      <div className="alerts-wrapper">
-        <div className="alerts-header">
-          <h1>Intrusion Detection Alerts</h1>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              className="refresh-btn"
-              onClick={handleRefreshAllLocations}
-              disabled={refreshingLocations}
-            >
-              {refreshingLocations ? "⟳ Refreshing..." : "🗺️ Refresh Locations"}
-            </button>
-            <button className="export-btn" onClick={exportToCSV}>
-              <FiDownload /> Export
-            </button>
-          </div>
-        </div>
+    <>
+      <PageHeader
+        title="Alerts"
+        subtitle="Every alert reported by a configured engine, newest first. Severity and status filter on the server; search runs across the loaded set."
+        actions={
+          <>
+            <Button onClick={handleRefreshLocations} loading={refreshingLocations}>
+              <Icon.map />
+              {refreshingLocations ? "Resolving…" : "Resolve locations"}
+            </Button>
+            <Button onClick={exportCSV} disabled={!filtered.length}>
+              <Icon.download /> Export CSV
+            </Button>
+          </>
+        }
+      />
 
-        <div className="summary-cards">
-          <div className="card card-total">
-            <span className="card-icon">!</span>
-            <div className="card-label">Total Alerts</div>
-            <hr />
-            <div className="card-value">{loading ? "…" : alerts.length}</div>
-          </div>
+      {locationError && <Notice tone="warning" className="nt-notice">{locationError}</Notice>}
 
-          <div className="card card-high">
-            <span className="card-icon">!</span>
-            <div className="card-label">High Severity</div>
-            <hr />
-            <div className="card-value">{loading ? "…" : highCount}</div>
-          </div>
+      {/* Operational summary: one strip, not four marketing tiles. */}
+      <ul className="stat-strip">
+        <li className="stat-strip__item stat-strip__item--lead">
+          <span className="stat-strip__value">{loading ? "—" : alerts.length}</span>
+          <span className="stat-strip__label">
+            {loading ? "Total loaded" : `Loaded · ${counts.observations} context`}
+          </span>
+        </li>
+        {[
+          ["high", "High"],
+          ["medium", "Medium"],
+          ["low", "Low"],
+        ].map(([key, label]) => (
+          <li key={key} className={`stat-strip__item stat-strip__item--${key}`}>
+            <span className="stat-strip__value">{loading ? "—" : counts[key]}</span>
+            <span className="stat-strip__label">{label} severity</span>
+          </li>
+        ))}
+      </ul>
 
-          <div className="card card-medium">
-            <span className="card-icon">!</span>
-            <div className="card-label">Medium Severity</div>
-            <hr />
-            <div className="card-value">{loading ? "…" : mediumCount}</div>
-          </div>
+      <FilterBar count={hasFilters ? `${filtered.length} of ${alerts.length}` : `${alerts.length} alerts`}>
+        <SearchFilter
+          value={search}
+          onChange={setSearch}
+          placeholder="Search address, port, signature or engine"
+          label="Search alerts"
+        />
+        <SelectFilter label="Severity" value={severityFilter} onChange={setSeverityFilter} options={SEVERITY_OPTIONS} />
+        <SelectFilter label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
+        {/* Filtering by engine is how the four roles are compared side by side. */}
+        <SelectFilter label="Engine" value={engineFilter} onChange={setEngineFilter} options={ENGINE_OPTIONS} />
+        <SelectFilter label="Record" value={kindFilter} onChange={setKindFilter} options={KIND_OPTIONS} />
+      </FilterBar>
 
-          <div className="card card-low">
-            <span className="card-icon">!</span>
-            <div className="card-label">Low Severity</div>
-            <hr />
-            <div className="card-value">{loading ? "…" : lowCount}</div>
-          </div>
-        </div>
-
-        {error && <div className="error-banner">⚠️ {error}</div>}
-
-        <div className="filters">
-          <select
-            value={severityFilter}
-            onChange={(e) => {
-              setSeverityFilter(e.target.value);
-              setCurrentPage(1);
-            }}
+      <div className="table-container">
+        {loading ? (
+          <LoadingRows rows={6} label="Loading alerts" />
+        ) : error ? (
+          <ErrorState onRetry={fetchAlerts}>{error}</ErrorState>
+        ) : current.length === 0 ? (
+          <EmptyState
+            icon={hasFilters ? "search" : "inbox"}
+            title={hasFilters ? "No alerts match these filters" : "No alerts stored yet"}
+            actions={hasFilters
+              ? <Button size="sm" onClick={clearFilters}>Clear filters</Button>
+              : undefined}
           >
-            <option value="">All Severities</option>
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-          </select>
+            {hasFilters
+              ? "Try a broader severity or status, or clear the search."
+              : "Run one of the ingestor scripts (Suricata, Snort, Zeek or Kismet) to load alerts from your sensor output."}
+          </EmptyState>
+        ) : (
+          <div className="table-scroll">
+            <table className="alerts-table alerts-table--actions altable">
+              <caption className="visually-hidden">Intrusion detection alerts</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Severity</th>
+                  <th scope="col">Event</th>
+                  <th scope="col">Connection</th>
+                  <th scope="col">Engine</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Reported</th>
+                  <th scope="col"><span className="visually-hidden">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {current.map((a) => {
+                  const when = fmtDate(a.timestamp);
+                  const place = locationLabel(a.dest_location);
+                  const hasGeo = a.dest_location?.latitude != null && a.dest_location?.longitude != null;
+                  return (
+                    <tr
+                      key={a.id}
+                      className={`altable__row altable__row--${(a.severity_label || "").toLowerCase()}${
+                        isObservation(a) ? " altable__row--observation" : ""
+                      }`}
+                    >
+                      {/* An observation has no severity of its own. Showing a
+                          badge would imply the engine graded it. */}
+                      <td>
+                        {isObservation(a)
+                          ? <span className="altable__nosev" aria-label="Not a severity-graded detection">—</span>
+                          : <SeverityBadge severity={a.severity_label} />}
+                      </td>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-          >
-            <option value="">All Status</option>
-            <option value="new">New</option>
-            <option value="investigating">In Progress</option>
-            <option value="resolved">Resolved</option>
-          </select>
+                      {/* The signature is the thing an analyst reads first, so
+                          it leads and the category sits under it as context. */}
+                      <td>
+                        <span className="altable__sig">{a.signature || "Unnamed event"}</span>
+                        <span className="altable__cat">
+                          <KindBadge record={a} />
+                          {a.category && <span>{a.category}</span>}
+                        </span>
+                      </td>
 
-          <div className="search-box">
-            <FiSearch />
-            <input
-              placeholder="Search IP, Port, Type"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-        </div>
+                      {/* Source and destination belong together — split across
+                          three columns they read as unrelated values. Kismet
+                          reports MACs, so endpoints come from the asset fields. */}
+                      <td>
+                        <span className="altable__flow ui-mono">
+                          <span className="altable__ip">{sourceOf(a) || "—"}</span>
+                          <span className="altable__arrow" aria-hidden="true">→</span>
+                          <span className="altable__ip">{destOf(a) || "—"}</span>
+                          {a.dest_port ? <span className="altable__port">:{a.dest_port}</span> : null}
+                        </span>
+                        <span className="altable__sub">
+                          {a.proto && <span className="altable__proto">{a.proto}</span>}
+                          {isMacRecord(a) && <span className="altable__proto">MAC</span>}
+                          {place && <span className="altable__geo">{place}</span>}
+                        </span>
+                      </td>
 
-        <div className="table-container">
-          {loading ? (
-            <p className="loading-text">Loading alerts…</p>
-          ) : currentAlerts.length === 0 ? (
-            <p className="empty-text">No alerts found.</p>
-          ) : (
-            <div className="table-scroll">
-              <table className="alerts-table">
-                <thead>
-                  <tr>
-                    <th>Severity</th>
-                    <th>Alert Type</th>
-                    <th>Source IP</th>
-                    <th>Destination IP</th>
-                    <th>Location</th>
-                    <th>Port</th>
-                    <th>IDS Source</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                    <th>View</th>
-                    <th>Map</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentAlerts.map((alert) => {
-                    const hasgeo =
-                      alert.dest_location?.latitude &&
-                      alert.dest_location?.longitude;
+                      <td><EngineBadge engine={a.source_nids} /></td>
+                      <td><StatusBadge status={a.status} /></td>
 
-                    return (
-                      <tr key={alert.id}>
-                        <td>
-                          <span
-                            className={`badge ${getSeverityClass(
-                              alert.severity_label
-                            )}`}
+                      <td className="altable__when">
+                        <span className="altable__age">{relTime(a.timestamp)}</span>
+                        {when && <span className="altable__abs ui-mono">{when.date} {when.time}</span>}
+                      </td>
+
+                      <td>
+                        <div className="alerts-rowactions">
+                          <Link
+                            to={`/alert/${a.id}`}
+                            state={{ alert: a }}
+                            className="ui-btn ui-btn--ghost ui-btn--sm"
                           >
-                            {alert.severity_label || "-"}
-                          </span>
-                        </td>
-                        <td style={{ textTransform: "capitalize" }}>
-                          {alert.signature || "-"}
-                        </td>
-                        <td>{alert.src_ip || "-"}</td>
-                        <td>{alert.dest_ip || "-"}</td>
-                        <td>
-                          {alert.dest_location ? (
-                            <span
-                              style={{
-                                fontSize: "0.85rem",
-                                color: "var(--text-muted)",
-                              }}
-                            >
-                              {alert.dest_location.city
-                                ? `${alert.dest_location.city}, ${alert.dest_location.country}`
-                                : alert.dest_location.country || "-"}
-                            </span>
-                          ) : (
-                            <span style={{ color: "var(--text-muted)" }}>-</span>
-                          )}
-                        </td>
-                        <td>{alert.dest_port || "-"}</td>
-                        <td>{alert.proto || "-"}</td>
-                        <td>
-                          {alert.timestamp
-                            ? new Date(alert.timestamp).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                              })
-                            : "-"}
-                        </td>
-                        <td>{alert.status || "new"}</td>
-                        <td>
-                          <Link to={`/alert/${alert.id}`} state={{ alert }}>
-                            <FiEye className="view-icon" />
+                            <Icon.eye />
+                            <span className="visually-hidden">Open {a.signature || "alert"}</span>
                           </Link>
-                        </td>
-                        <td>
-                          {hasgeo ? (
-                            <FiMap
-                              className="view-icon"
-                              title="View on Threat Map"
-                              style={{
-                                cursor: "pointer",
-                                color: "var(--accent-main)",
-                              }}
-                              onClick={() =>
-                                navigate(`/threat-map?alertId=${alert.id}`)
-                              }
-                            />
-                          ) : (
-                            <span style={{ color: "var(--text-dim)" }}>—</span>
+                          {hasGeo && (
+                            <button
+                              type="button"
+                              className="ui-btn ui-btn--ghost ui-btn--sm"
+                              onClick={() => navigate(`/threat-map?alertId=${a.id}`)}
+                            >
+                              <Icon.map />
+                              <span className="visually-hidden">Show on threat map</span>
+                            </button>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-        <div className="pagination">
+      {!loading && !error && filtered.length > PER_PAGE && (
+        <nav className="pagination" aria-label="Alert pages">
           <p>
-            Showing {showingFrom} to {showingTo} of {totalAlerts} alerts
+            Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
           </p>
           <div className="pages">
-            <button
-              onClick={() => setCurrentPage((prev) => prev - 1)}
-              disabled={currentPage === 1}
-              className="page-nav"
-            >
-              ‹
-            </button>
-
-            {getPageNumbers().map((page, index) => (
+            <button className="page-nav" onClick={() => setPage((p) => p - 1)} disabled={page === 1} aria-label="Previous page">‹</button>
+            {pageWindow.map((p, i) => (
               <button
-                key={index}
-                className={`page-number ${page === currentPage ? "active" : ""} ${
-                  page === "..." ? "dots" : ""
-                }`}
-                onClick={() => page !== "..." && setCurrentPage(page)}
-                disabled={page === "..."}
-              >
-                {page}
-              </button>
+                key={`${p}-${i}`}
+                className={`page-number ${p === page ? "active" : ""} ${p === "…" ? "dots" : ""}`}
+                onClick={() => p !== "…" && setPage(p)}
+                disabled={p === "…"}
+                aria-current={p === page ? "page" : undefined}
+              >{p}</button>
             ))}
-
-            <button
-              onClick={() => setCurrentPage((prev) => prev + 1)}
-              disabled={currentPage === totalPages}
-              className="page-nav"
-            >
-              ›
-            </button>
+            <button className="page-nav" onClick={() => setPage((p) => p + 1)} disabled={page === totalPages} aria-label="Next page">›</button>
           </div>
-        </div>
-      </div>
-    </main>
+        </nav>
+      )}
+    </>
   );
 };
 

@@ -1,24 +1,27 @@
-import React from "react";
 import ThemePicker from "../../components/ThemePicker";
+import { PageHeader } from "../../components/ui";
+import "./analyst.css";
 
 function Settings() {
   return (
-    <div className="admin-page" style={{ height: "100%", padding: "2rem" }}>
-      <div className="admin-page-header">
-        <h1 className="page-title">Themes</h1>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.88rem", marginTop: "0.25rem" }}>
-          Manage application preferences.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="Appearance"
+        subtitle="Theme preference is stored in this browser only. It does not affect other users or other devices."
+      />
 
-      <div className="admin-card" style={{ padding: "2rem" }}>
-        <h3 style={{ marginBottom: "0.3rem" }}>Appearance</h3>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-          Choose your preferred dashboard theme. Changes apply instantly.
-        </p>
-        <ThemePicker />
-      </div>
-    </div>
+      <section className="ops" aria-labelledby="theme-heading">
+        <div className="ops__head">
+          <h2 className="ops__title" id="theme-heading">Dashboard theme</h2>
+        </div>
+        <div className="settings-panel">
+          <p className="settings-panel__hint">
+            Changes apply immediately across the analyst and admin interfaces.
+          </p>
+          <ThemePicker />
+        </div>
+      </section>
+    </>
   );
 }
 

@@ -1,290 +1,227 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import PublicNavbar from "../../components/PublicNavbar";
+import "./public.css";
 
 const TECH_STACK = [
-  { name: "React",     color: "#61dafb" },
-  { name: "FastAPI",   color: "#009688" },
-  { name: "MongoDB",   color: "#4db33d" },
-  { name: "Suricata",  color: "#f97316" },
-  { name: "Snort",     color: "#ef4444" },
-  { name: "Zeek",      color: "#8b5cf6" },
-  { name: "Kismet",    color: "#06b6d4" },
-  { name: "Telegram",  color: "#2ca5e0" },
+  { group: "Frontend", items: ["React", "Vite", "React Router", "Recharts", "Leaflet"] },
+  { group: "Backend",  items: ["FastAPI", "Python", "MongoDB"] },
+  { group: "Engines",  items: ["Suricata", "Snort", "Zeek", "Kismet"] },
+];
+
+const PROBLEMS = [
+  "Each detection engine writes its own log format, in its own location, with its own severity scheme.",
+  "Comparing what Suricata and Zeek said about the same host means reading two unrelated files.",
+  "Triage decisions and the reasoning behind them end up in notebooks and chat, not next to the alert.",
+  "Producing a written record of an investigation is a manual copy-and-paste exercise.",
+];
+
+const RESPONSES = [
+  "One ingest endpoint and one normalized alert schema shared by all four engines.",
+  "A single queue where the producing engine is a column you can filter and sort on.",
+  "Notes and triage status stored against the alert itself.",
+  "CSV and PDF export of whatever alert set is currently on screen.",
+];
+
+const FLOW = [
+  {
+    title: "Detection engines",
+    text: "Suricata, Snort, Zeek and Kismet run where they already run, and keep writing their own logs.",
+  },
+  {
+    title: "Ingestion scripts",
+    text: "Per-engine parsers read those files, map each record onto the shared schema, and POST it to the API with an ingest key.",
+  },
+  {
+    title: "API and store",
+    text: "FastAPI validates and persists each alert in MongoDB, adds a severity label, an initial status of new, and a best-effort geolocation lookup.",
+  },
+];
+
+const CAPABILITIES = [
+  {
+    title: "Alert review",
+    text: "Filter by severity and status server-side; search address, port, protocol and signature client-side; open any alert for full detail.",
+  },
+  {
+    title: "Traffic log view",
+    text: "Browse the stored records with the producing engine shown alongside each entry.",
+  },
+  {
+    title: "Investigation tracking",
+    text: "Attach notes to an alert and move it through new, investigating and resolved.",
+  },
+  {
+    title: "Reporting",
+    text: "Export the filtered alert set as CSV, or render a PDF report for a write-up.",
+  },
 ];
 
 function About() {
-  const navigate = useNavigate();
-
   return (
-    <div style={styles.page}>
-      <PublicNavbar active="About" />
+    <div className="p-page">
+      <PublicNavbar />
 
-      <section style={styles.hero}>
-        <div style={styles.heroLeft}>
-          <div style={styles.heroBadge}>Final Year Project</div>
-          <h1 style={styles.heroTitle}>A lightweight IDS dashboard for fast, remote monitoring</h1>
-          <p style={styles.heroSubtitle}>
-            MyIDS centralizes alerts from Snort, Suricata, Zeek & Kismet into one modern interface —
-            with cloud-assisted notifications for analysts on the move.
-          </p>
-          <div style={styles.heroCtas}>
-            <button style={styles.primaryBtn} onClick={() => navigate("/demo")}>View Demo</button>
-            <button style={styles.secondaryBtn} onClick={() => navigate("/register")}>Register</button>
-          </div>
-        </div>
+      <main className="p-main">
+        <section className="p-shell p-hero">
+          <div className="p-hero__body">
+            <p className="p-badge">
+              <span className="p-badge__dot" aria-hidden="true" />
+              Final year project
+            </p>
 
-        <div style={styles.heroRight}>
-          <div style={styles.heroCard}>
-            <div style={styles.heroCardTitle}>What you get</div>
-            <ul style={styles.heroList}>
-              <li>Real-time alert visibility</li>
-              <li>Incident grouping & notes</li>
-              <li>Traffic log search by IP/port</li>
-              <li>Reports (PDF/CSV) for evidence</li>
-              <li>Hybrid cloud notifications</li>
-            </ul>
-          </div>
-        </div>
-      </section>
+            <h1 className="p-h1">
+              Why a normalization layer{" "}
+              <span className="p-accent-text">between engines and analysts</span>
+            </h1>
 
-      <div style={styles.sectionWrap}>
+            <p className="p-lede">
+              IntruSight was built to study how alert triage actually works when
+              more than one detection engine is deployed, and to make that
+              workflow observable in a single interface.
+            </p>
 
-        {/* Problem vs Solution */}
-        <section style={styles.section}>
-          <h2 style={styles.sectionTitle}>Why this project exists</h2>
-          <div style={styles.twoCol}>
-            <div style={{ ...styles.panel, borderColor: "#7f1d1d", borderLeftWidth: "3px" }}>
-              <div style={{ ...styles.panelTitle, color: "#f87171" }}>The Problem</div>
-              <ul style={styles.list}>
-                <li>Hard to monitor multiple IDS tools in one place</li>
-                <li>Limited visibility when analysts are away from their workstation</li>
-                <li>Noise and alert fatigue without grouping/correlation</li>
-                <li>Manual reporting and inconsistent incident records</li>
-              </ul>
+            <div className="p-hero__actions">
+              <Link to="/demo" className="p-btn p-btn--primary">
+                Explore the demo
+              </Link>
+              <Link to="/features" className="p-btn p-btn--tertiary">
+                See the feature list
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12h13M13 6l6 6-6 6" />
+                </svg>
+              </Link>
             </div>
-            <div style={{ ...styles.panel, borderColor: "#14532d", borderLeftWidth: "3px" }}>
-              <div style={{ ...styles.panelTitle, color: "#4ade80" }}>Our Solution</div>
-              <ul style={styles.list}>
-                <li>Single dashboard for Snort / Suricata / Zeek / Kismet</li>
-                <li>Notifications via cloud service (mobile / email / telegram)</li>
-                <li>Severity filtering, triage views, and investigation notes</li>
-                <li>Exportable reports for evidence handling and audit</li>
+          </div>
+
+          <div className="p-preview">
+            <div style={{ padding: "var(--p-s5)" }}>
+              <h2 className="p-h3">Scope of the project</h2>
+              <p className="p-body" style={{ marginBottom: "var(--p-s3)" }}>
+                IntruSight sits downstream of detection. It does not observe the
+                network itself.
+              </p>
+              <ul className="p-scope__list p-scope__list--yes">
+                <li>Receives alerts and events already produced by the engines</li>
+                <li>Normalizes, stores, filters and annotates them</li>
+                <li>Does not capture packets or inspect live traffic</li>
+                <li>Does not author or tune detection rules</li>
+                <li>Is not a SIEM and is not production-verified</li>
               </ul>
             </div>
           </div>
         </section>
 
-        {/* Architecture */}
-        <section style={styles.section}>
-          <h2 style={styles.sectionTitle}>High-level architecture</h2>
-          <div style={styles.arch}>
-            <div style={styles.archNode}>
-              <div style={styles.archTitle}>IDS Sensors</div>
-              <div style={styles.archText}>Snort • Suricata • Zeek • Kismet</div>
+        <section className="p-band" aria-labelledby="problem-heading">
+          <div className="p-shell p-section">
+          <div className="p-section__head">
+            <div>
+              <span className="p-eyebrow">Motivation</span>
+              <h2 id="problem-heading" className="p-h2">
+                The problem it addresses
+              </h2>
             </div>
-            <div style={styles.archArrow}>→</div>
-            <div style={styles.archNode}>
-              <div style={styles.archTitle}>Ingestion Engine</div>
-              <div style={styles.archText}>Parse • normalize • store</div>
+            <p className="p-body">
+              Running several engines gives better coverage than any one of them
+              alone. It also multiplies the number of places an analyst has to
+              look.
+            </p>
+          </div>
+
+          <div className="p-scope">
+            <div className="p-panel">
+              <h3 className="p-h3">Observed friction</h3>
+              <ul className="p-scope__list">
+                {PROBLEMS.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
             </div>
-            <div style={styles.archArrow}>→</div>
-            <div style={styles.archNode}>
-              <div style={styles.archTitle}>Web Dashboard</div>
-              <div style={styles.archText}>Alerts • traffic • reports</div>
-            </div>
-            <div style={styles.archArrow}>→</div>
-            <div style={styles.archNode}>
-              <div style={styles.archTitle}>Cloud Notifications</div>
-              <div style={styles.archText}>Mobile • email • telegram</div>
+
+            <div className="p-panel">
+              <h3 className="p-h3">How IntruSight responds</h3>
+              <ul className="p-scope__list p-scope__list--yes">
+                {RESPONSES.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
             </div>
           </div>
-          <div style={styles.archHint}>
-            This split keeps local analysis fast while allowing remote notification delivery.
           </div>
         </section>
 
-        {/* Core capabilities */}
-        <section style={styles.section}>
-          <h2 style={styles.sectionTitle}>Core capabilities</h2>
-          <div style={styles.cards}>
-            <FeatureCard title="Alert Visualization" desc="Filter by severity, source, time, and investigate with detail views." />
-            <FeatureCard title="Traffic Log Search" desc="Search and pivot network traffic by IP, port, protocol, and IDS source." />
-            <FeatureCard title="Incident Handling" desc="Group related alerts, attach notes, and track progress over time." />
-            <FeatureCard title="Reporting" desc="Generate PDF/CSV reports with notes to support evidence and audit." />
+        <section className="p-shell p-section" aria-labelledby="arch-heading">
+          <div className="p-section__head">
+            <div>
+              <span className="p-eyebrow">Architecture</span>
+              <h2 id="arch-heading" className="p-h2">
+                How an alert reaches the dashboard
+              </h2>
+            </div>
+            <p className="p-body">
+              Ingestion is pull-based and script-driven: each parser reads engine
+              output and posts to the API. There is no agent installed on the
+              sensor and no live connection back to it.
+            </p>
           </div>
-        </section>
 
-        {/* Tech stack */}
-        <section style={styles.section}>
-          <h2 style={styles.sectionTitle}>Tech stack</h2>
-          <div style={styles.techRow}>
-            {TECH_STACK.map((t) => (
-              <div key={t.name} style={{ ...styles.techBadge, borderColor: t.color, color: t.color }}>
-                {t.name}
-              </div>
+          <ol className="p-flow">
+            {FLOW.map((step, i) => (
+              <li key={step.title} className="p-flow__step">
+                <span className="p-step__index">{String(i + 1).padStart(2, "0")}</span>
+                <h3 className="p-h3">{step.title}</h3>
+                <p className="p-body">{step.text}</p>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
 
-      </div>
+        <section className="p-shell p-section" aria-labelledby="cap-heading">
+          <span className="p-eyebrow">In the application</span>
+          <h2 id="cap-heading" className="p-h2" style={{ marginBottom: "var(--p-s5)" }}>
+            Core capabilities
+          </h2>
 
-      <footer style={styles.footer}>© 2026 Intrusion Detection Dashboard</footer>
+          <ul className="p-grid-2">
+            {CAPABILITIES.map((item) => (
+              <li key={item.title} className="p-panel p-panel--interactive">
+                <h3 className="p-h3">{item.title}</h3>
+                <p className="p-body">{item.text}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="p-shell p-section" aria-labelledby="stack-heading">
+          <span className="p-eyebrow">Implementation</span>
+          <h2 id="stack-heading" className="p-h2" style={{ marginBottom: "var(--p-s5)" }}>
+            Tech stack
+          </h2>
+
+          <ul className="p-grid-3">
+            {TECH_STACK.map((group) => (
+              <li key={group.group} className="p-panel">
+                <h3 className="p-h3">{group.group}</h3>
+                <ul className="p-stack">
+                  {group.items.map((name) => (
+                    <li key={name} className="p-chip p-chip--plain">
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </main>
+
+      <footer className="p-footer">
+        <div className="p-shell p-footer__inner">
+          <span>IntruSight — educational network intrusion alert management platform.</span>
+          <span>FYP-26-S1-20</span>
+        </div>
+      </footer>
     </div>
   );
 }
-
-function FeatureCard({ title, desc }) {
-  return (
-    <div style={styles.featureCard}>
-      <div style={styles.featureTitle}>{title}</div>
-      <div style={styles.featureDesc}>{desc}</div>
-    </div>
-  );
-}
-
-const styles = {
-  page: {
-    backgroundColor: "#0f172a",
-    color: "#f1f5f9",
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    fontFamily: "sans-serif",
-  },
-  hero: {
-    display: "grid",
-    gridTemplateColumns: "1.4fr 1fr",
-    gap: "1rem",
-    alignItems: "stretch",
-    padding: "3.5rem 2rem",
-  },
-  heroLeft: { maxWidth: "760px" },
-  heroBadge: {
-    display: "inline-block",
-    backgroundColor: "rgba(59,130,246,0.12)",
-    border: "1px solid rgba(59,130,246,0.3)",
-    color: "#60a5fa",
-    borderRadius: "999px",
-    padding: "0.3rem 0.9rem",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    marginBottom: "0.75rem",
-    letterSpacing: "0.03em",
-  },
-  heroTitle: {
-    fontSize: "2.4rem",
-    fontWeight: 900,
-    lineHeight: 1.2,
-    marginBottom: "1rem",
-    color: "#f1f5f9",
-  },
-  heroSubtitle: {
-    color: "#94a3b8",
-    fontSize: "1.05rem",
-    margin: 0,
-    lineHeight: 1.6,
-  },
-  heroCtas: { display: "flex", gap: "0.75rem", marginTop: "1.5rem", flexWrap: "wrap" },
-  primaryBtn: {
-    padding: "0.8rem 1.2rem",
-    backgroundColor: "#3b82f6",
-    color: "#fff",
-    border: "none",
-    borderRadius: "10px",
-    fontSize: "1rem",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  secondaryBtn: {
-    padding: "0.8rem 1.2rem",
-    backgroundColor: "transparent",
-    color: "#e2e8f0",
-    border: "1px solid #334155",
-    borderRadius: "10px",
-    fontSize: "1rem",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  heroRight: { display: "flex", justifyContent: "flex-end" },
-  heroCard: {
-    width: "100%",
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    padding: "1.1rem",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-  },
-  heroCardTitle: { fontWeight: 900, marginBottom: "0.6rem" },
-  heroList: { margin: 0, paddingLeft: "1.15rem", color: "#cbd5e1", lineHeight: 1.8 },
-
-  sectionWrap: { padding: "0 2rem 2.5rem" },
-  section: { marginTop: "1.75rem" },
-  sectionTitle: { fontSize: "1.35rem", marginBottom: "0.9rem" },
-
-  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" },
-  panel: {
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    padding: "1.1rem",
-  },
-  panelTitle: { fontWeight: 900, marginBottom: "0.7rem" },
-  list: { margin: 0, paddingLeft: "1.15rem", color: "#cbd5e1", lineHeight: 1.8 },
-
-  arch: {
-    display: "flex",
-    alignItems: "stretch",
-    gap: "0.75rem",
-    flexWrap: "wrap",
-  },
-  archNode: {
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    padding: "1rem",
-    minWidth: "210px",
-    flex: "1",
-  },
-  archTitle: { fontWeight: 900, marginBottom: "0.35rem" },
-  archText: { color: "#94a3b8", lineHeight: 1.6 },
-  archArrow: { display: "flex", alignItems: "center", color: "#64748b", fontWeight: 900 },
-  archHint: { marginTop: "0.8rem", color: "#94a3b8" },
-
-  cards: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" },
-  featureCard: {
-    backgroundColor: "#111c33",
-    border: "1px solid #24324f",
-    borderRadius: "14px",
-    padding: "1.1rem",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-  },
-  featureTitle: { fontWeight: 900, marginBottom: "0.45rem" },
-  featureDesc: { color: "#94a3b8", lineHeight: 1.7 },
-
-  // Tech stack badges
-  techRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "0.6rem",
-  },
-  techBadge: {
-    padding: "0.4rem 0.9rem",
-    borderRadius: "999px",
-    border: "1px solid",
-    fontSize: "0.85rem",
-    fontWeight: 700,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    letterSpacing: "0.02em",
-  },
-
-  footer: {
-    marginTop: "auto",
-    textAlign: "right",
-    padding: "1rem 2rem",
-    color: "#475569",
-    fontSize: "0.8rem",
-    borderTop: "1px solid #1e293b",
-  },
-};
 
 export default About;

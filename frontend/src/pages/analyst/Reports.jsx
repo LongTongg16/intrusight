@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getAlerts } from "../../services/api";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { PageHeader, SectionHeader, Button, Notice, Icon } from "../../components/ui";
 import './analyst.css';
 
 function getStorageKey() {
@@ -51,6 +50,7 @@ function Reports() {
   const [reports, setReports] = useState(() => loadLocalHistory());
 
   /* ── Table filters ─────────────────────────────────────────── */
+  const [exportError, setExportError] = useState("");
   const [filterScope,  setFilterScope]  = useState("ALL");
   const [filterFormat, setFilterFormat] = useState("ALL");
 
@@ -81,8 +81,14 @@ function Reports() {
       const sev = (a.severity_label || '').toLowerCase();
       if (scope === "High Only"     && sev !== 'high') return false;
       if (scope === "Medium & High" && !['high','medium'].includes(sev)) return false;
-      // IDS source (best-effort on proto/ids field)
-      if (srcFilter !== "ALL" && a.proto !== srcFilter && a.ids !== srcFilter) return false;
+      // Engine. Alerts carry the normalized name in `source_nids` (upper-case,
+      // e.g. "SURICATA"); the filter previously compared `proto` and `ids`,
+      // neither of which exists on the alert model, so every engine selection
+      // silently matched nothing.
+      if (srcFilter !== "ALL") {
+        const engine = String(a.source_nids ?? "").toLowerCase();
+        if (engine !== String(srcFilter).toLowerCase()) return false;
+      }
       return true;
     });
   };
@@ -118,7 +124,9 @@ function Reports() {
     if (format === "CSV") {
       triggerCSV(newReport, scopedAlerts);
     } else {
-      triggerPDF(newReport, scopedAlerts);
+      triggerPDF(newReport, scopedAlerts).catch(() =>
+        setExportError("Could not generate the PDF. Try CSV, or reload and retry.")
+      );
     }
 
     // Save to localStorage
@@ -142,7 +150,9 @@ function Reports() {
   const downloadRow = (r) => {
     const scopedAlerts = filterAlerts(liveAlerts, r.scope, r.by === "All Sources" ? "ALL" : r.by, r.dateFrom, r.dateTo);
     if (r.format === "CSV") triggerCSV(r, scopedAlerts);
-    else triggerPDF(r, scopedAlerts);
+    else triggerPDF(r, scopedAlerts).catch(() =>
+      setExportError("Could not generate the PDF. Try CSV, or reload and retry.")
+    );
   };
 
   const triggerCSV = (report, alerts) => {
@@ -174,7 +184,13 @@ function Reports() {
     URL.revokeObjectURL(url);
   };
 
-  const triggerPDF = (report, alerts) => {
+  // jsPDF and its autotable plugin are ~390 kB combined and are only needed
+  // when an export is actually requested, so they are fetched on demand.
+  const triggerPDF = async (report, alerts) => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     const highCount = alerts.filter(a => (a.severity_label || '').toLowerCase() === 'high').length;
 
@@ -223,31 +239,40 @@ function Reports() {
 
   /* ─────────────────────────────────────────────────────────── */
   return (
-    <main className="dashboard-main">
-      <div className="dashboard-status-bar">
-        <h1 className="page-title">Reports</h1>
-      </div>
+    <>
+      <PageHeader
+        title="Reports"
+        subtitle="Export the stored alert set for a date range as a PDF summary or a CSV extract. Reports are generated in your browser from alerts already loaded — nothing is scheduled or sent anywhere."
+      />
+
+      {exportError && (
+        <Notice tone="error" className="report-error">{exportError}</Notice>
+      )}
 
       {/* ── Generate form ── */}
-      <div className="card">
-        <h2 className="section-title">Generate Report</h2>
+      <section className="ui-panel rep-panel">
+        <div className="ui-panel__body">
+        <SectionHeader
+          title="Generate report"
+          hint="Runs against the alerts already loaded in this session."
+        />
 
-        <div className="filters">
+        <div className="filters filters--bare">
           {/* Date range */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label className="nav-section-title">Alert Date Range</label>
+            <span className="nav-section-title" id="rep-range-label">Alert date range</span>
             <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-              <input className="time-filter" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <input className="time-filter" type="date" aria-label="Start date" value={from} onChange={(e) => setFrom(e.target.value)} />
               <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>to</span>
-              <input className="time-filter" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              <input className="time-filter" type="date" aria-label="End date" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
             {!isRangeValid && <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>End date must be after start date</span>}
           </div>
 
           {/* Severity */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label className="nav-section-title">Severity Scope</label>
-            <select className="time-filter" value={severity} onChange={(e) => setSeverity(e.target.value)}>
+            <label className="nav-section-title" htmlFor="rep-severity">Severity Scope</label>
+            <select id="rep-severity" className="time-filter" value={severity} onChange={(e) => setSeverity(e.target.value)}>
               <option value="HIGH_ONLY">High Only</option>
               <option value="HIGH_MED">Medium &amp; High</option>
               <option value="ALL">All Severities</option>
@@ -256,19 +281,20 @@ function Reports() {
 
           {/* IDS Source */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label className="nav-section-title">IDS Source</label>
-            <select className="time-filter" value={idsSource} onChange={(e) => setIdsSource(e.target.value)}>
+            <label className="nav-section-title" htmlFor="rep-idssource">IDS Source</label>
+            <select id="rep-idssource" className="time-filter" value={idsSource} onChange={(e) => setIdsSource(e.target.value)}>
               <option value="ALL">All Sources</option>
               <option value="Suricata">Suricata</option>
               <option value="Snort">Snort</option>
               <option value="Zeek">Zeek</option>
+              <option value="Kismet">Kismet</option>
             </select>
           </div>
 
           {/* Format */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label className="nav-section-title">Output Format</label>
-            <select className="time-filter" value={format} onChange={(e) => setFormat(e.target.value)}>
+            <label className="nav-section-title" htmlFor="rep-format">Output Format</label>
+            <select id="rep-format" className="time-filter" value={format} onChange={(e) => setFormat(e.target.value)}>
               <option value="PDF">PDF</option>
               <option value="CSV">CSV</option>
             </select>
@@ -276,33 +302,30 @@ function Reports() {
         </div>
 
         {/* Form actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.75rem' }}>
-          <button className="export-btn" onClick={resetForm}>Reset</button>
-          <button className="view-btn" onClick={generate} disabled={!isRangeValid}>
-            Generate
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+          <Button variant="ghost" onClick={resetForm}>Reset</Button>
+          <Button variant="primary" onClick={generate} disabled={!isRangeValid}>
+            <Icon.download /> Generate {format}
+          </Button>
         </div>
-      </div>
-
-      <div className="divider" />
+        </div>
+      </section>
 
       {/* ── History table ── */}
-      <div className="recent-alerts-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h2 className="section-title" style={{ margin: 0 }}>
-            Report History
-            <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85rem', marginLeft: '0.5rem' }}>
-              ({filteredReports.length} of {reports.length})
-            </span>
-          </h2>
+      <section className="ui-panel rep-panel">
+        <div className="ui-panel__body rep-hist__head">
+          <SectionHeader
+            title={`Report history (${filteredReports.length} of ${reports.length})`}
+            hint="Generated in this browser session — reports are not stored on the server."
+          />
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <select className="time-filter" value={filterScope} onChange={(e) => setFilterScope(e.target.value)}>
+            <select className="time-filter" aria-label="Filter report history by scope" value={filterScope} onChange={(e) => setFilterScope(e.target.value)}>
               <option value="ALL">All Scopes</option>
               <option value="High Only">High Only</option>
               <option value="Medium & High">Medium &amp; High</option>
               <option value="All">All Severities</option>
             </select>
-            <select className="time-filter" value={filterFormat} onChange={(e) => setFilterFormat(e.target.value)}>
+            <select className="time-filter" aria-label="Filter report history by format" value={filterFormat} onChange={(e) => setFilterFormat(e.target.value)}>
               <option value="ALL">All Formats</option>
               <option value="PDF">PDF</option>
               <option value="CSV">CSV</option>
@@ -313,6 +336,23 @@ function Reports() {
           </div>
         </div>
 
+        {reports.length === 0 ? (
+          /* A table header above a single "nothing here" row reads as a
+             broken table. With no reports at all, show the compact empty
+             state instead of an empty grid. */
+          <div className="rep-empty">
+            <div className="ops-empty">
+              <span className="ops-empty__icon" aria-hidden="true"><Icon.download /></span>
+              <div>
+                <p className="ops-empty__title">No reports generated yet</p>
+                <p className="ops-empty__text">
+                  Choose a date range and format above, then generate a PDF or CSV.
+                  Reports are built in this browser and are not stored on the server.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="table-scroll">
           <table className="alerts-table">
             <thead>
@@ -328,11 +368,7 @@ function Reports() {
               </tr>
             </thead>
             <tbody>
-              {reports.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="empty-text">No reports generated yet. Use the form above to generate one.</td>
-                </tr>
-              ) : filteredReports.length === 0 ? (
+              {filteredReports.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="empty-text">No reports match the current filters.</td>
                 </tr>
@@ -357,8 +393,9 @@ function Reports() {
             </tbody>
           </table>
         </div>
-      </div>
-    </main>
+        )}
+      </section>
+    </>
   );
 }
 

@@ -1,0 +1,179 @@
+/* ═══════════════════════════════════════════════════════════════
+   SEMANTIC DESIGN TOKENS
+
+   The application had several competing variable vocabularies:
+   index.css (--bg-primary / --text-primary), analyst.css
+   (--bg-main / --text-main), admin.css (--admin-*), plus
+   ThemeContext.jsx injecting a legacy set inline on <html>.
+
+   Rather than rename thousands of declarations, this file defines
+   ONE semantic vocabulary layered on top of the theme-injected
+   names. Theme switching still drives everything — these tokens
+   resolve through the injected values, with literal fallbacks so
+   they remain valid before the provider mounts.
+
+   New code should use these names. Legacy names still work.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Surfaces: 0 = page floor, rising to 3 = hover/active ── */
+  --surface-0:      var(--bg-main, #0b1220);
+  --surface-1:      var(--bg-card, #131e33);
+  --surface-2:      var(--bg-card-alt, #0f1829);
+  --surface-3:      var(--bg-hover, #18243c);
+  --surface-raised: var(--bg-card, #131e33);
+  --surface-sunken: var(--bg-input, #0d1729);
+
+  /* ── Text ── */
+  --text-strong:   var(--text-main, #f6f9fd);
+  --text-body:     var(--text-main, #dde5f2);
+  --text-secondary-c: var(--text-muted, #93a1b8);
+  --text-muted-c:  var(--text-dim, #7a8aa2);
+  --text-disabled: color-mix(in srgb, var(--text-dim, #64748b) 65%, transparent);
+
+  /* ── Borders ── */
+  --border-subtle:  color-mix(in srgb, var(--border-color, #24324f) 55%, transparent);
+  --border-default: var(--border-color, #24324f);
+  --border-strong:  color-mix(in srgb, var(--border-color, #24324f) 100%, #94a3b8 35%);
+
+  /* ── Accent ── */
+  --accent:        var(--accent-primary, #4cc9f0);
+  --accent-hover:  color-mix(in srgb, var(--accent-primary, #4cc9f0) 82%, white 18%);
+  --accent-muted:  var(--accent-dim, rgba(76, 201, 240, 0.14));
+  --accent-solid:  #0891b2;
+  --accent-on:     #f0fdff;
+
+  /* ── Severity ── */
+  --severity-high:   #f87171;
+  --severity-medium: #fbbf24;
+  --severity-low:    #34d399;
+
+  /* ── Triage status ── */
+  --status-new:           #93c5fd;
+  --status-investigating: #fcd34d;
+  --status-resolved:      #6ee7b7;
+
+  /* ── Feedback ── */
+  --feedback-success: var(--success, #34d399);
+  --feedback-warning: var(--warning, #fbbf24);
+  --feedback-error:   var(--error, #f87171);
+
+  /* ── Radius: tight on dense UI, softer on marketing surfaces ── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  /* ── Elevation ── */
+  --edge:      inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --shadow-sm: 0 1px 2px rgba(3, 7, 18, 0.35);
+  --shadow-md: 0 2px 4px rgba(3, 7, 18, 0.4), 0 8px 24px -8px rgba(3, 7, 18, 0.55);
+  --shadow-lg: 0 4px 8px rgba(3, 7, 18, 0.45), 0 24px 56px -16px rgba(3, 7, 18, 0.7);
+
+  /* ── Spacing ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+  --space-9: 96px;
+
+  /* ── Type: three roles, each with a job ──────────────────────────
+     display  Space Grotesk — page titles, metrics, brand. Carries the
+              character; without it the product reads as a generic admin.
+     sans     Inter — every piece of UI and body copy.
+     mono     JetBrains Mono — IPs, ports, IDs, timestamps, signatures.
+     Each has a full local fallback stack so a blocked CDN degrades
+     rather than breaks. */
+  --font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --fs-2xs: 0.6875rem;
+  --fs-xs:  0.75rem;
+  --fs-sm:  0.8125rem;
+  --fs-md:  0.875rem;
+  --fs-lg:  0.9375rem;
+  --fs-xl:  1.0625rem;
+  --fs-2xl: 1.3rem;
+  --fs-3xl: 1.625rem;
+  --fs-4xl: 2.125rem;
+  --fs-metric: 2.25rem;
+
+  /* Tracking tightens as type grows — large text set at 0 looks loose. */
+  --track-tight:  -0.03em;
+  --track-snug:   -0.015em;
+  --track-normal: 0;
+  --track-wide:   0.06em;
+  --track-caps:   0.09em;
+
+  --lh-tight: 1.15;
+  --lh-snug:  1.35;
+  --lh-body:  1.6;
+
+  /* ── Motion ──────────────────────────────────────────────────────
+     Four durations and three curves, so timing is a decision made once.
+     Everything decorative is disabled under prefers-reduced-motion in
+     index.css — never re-enable it locally. */
+  --ease:        cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --dur-fast: 120ms;
+  --duration: 160ms;
+  --dur-mid:  220ms;
+  --dur-slow: 320ms;
+
+  --transition-base: color var(--duration) var(--ease),
+                     background-color var(--duration) var(--ease),
+                     border-color var(--duration) var(--ease);
+
+  /* ── Engine identity ─────────────────────────────────────────────
+     The four engines are the one visual asset unique to IntruSight, so
+     each gets a reserved hue and monogram used everywhere it appears.
+     These identify a *source*, never a severity or a health state. */
+  --engine-suricata: #f97362;
+  --engine-snort:    #c084fc;
+  --engine-zeek:     #38bdf8;
+  --engine-kismet:   #34d399;
+  --engine-unknown:  #94a3b8;
+
+  /* ── App shell ── */
+  --sidebar-w: 244px;
+  --page-max:  1560px;
+}
+
+/* Light-ish themes need a darker edge highlight or panels look washed out. */
+[data-theme="light"],
+[data-theme="white-yellow"] {
+  --edge:      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 2px 4px rgba(15, 23, 42, 0.06), 0 8px 24px -8px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.08), 0 24px 56px -16px rgba(15, 23, 42, 0.18);
+  --severity-high:   #dc2626;
+  --severity-medium: #b45309;
+  --severity-low:    #047857;
+  --status-new:           #1d4ed8;
+  --status-investigating: #b45309;
+  --status-resolved:      #047857;
+  /* Engine hues need more weight to hold up on a white ground. */
+  --engine-suricata: #d94a36;
+  --engine-snort:    #7c3aed;
+  --engine-zeek:     #0369a1;
+  --engine-kismet:   #047857;
+  --engine-unknown:  #64748b;
+}
+
+/* blue-white and orange-black are also light-ish grounds for engine hues. */
+[data-theme="blue-white"] {
+  --engine-suricata: #d94a36;
+  --engine-snort:    #7c3aed;
+  --engine-zeek:     #0369a1;
+  --engine-kismet:   #047857;
+  --engine-unknown:  #64748b;
+}

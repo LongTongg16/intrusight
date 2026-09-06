@@ -5,9 +5,6 @@ export const styles = {
   },
 
   header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: '1.5rem',
   },
 
@@ -16,6 +13,14 @@ export const styles = {
     fontWeight: '700',
     margin: 0,
     color: 'var(--admin-text)',
+  },
+
+  pageNote: {
+    margin: '0.6rem 0 0',
+    maxWidth: '78ch',
+    fontSize: '0.875rem',
+    lineHeight: 1.6,
+    color: 'var(--text-secondary-c, #93a1b8)',
   },
 
   tableSection: {
@@ -127,15 +132,16 @@ export const styles = {
   },
 
   submitBtn: {
-    padding: '0.875rem 1.5rem',
-    background: 'var(--primary)',
-    color: 'white',
-    border: 'none',
-    borderRadius: 'var(--radius)',
-    fontWeight: '500',
-    fontSize: '0.95rem',
+    minHeight: '36px',
+    padding: '0 1.1rem',
+    background: 'var(--accent-solid)',
+    color: 'var(--accent-on)',
+    border: '1px solid var(--accent-solid)',
+    borderRadius: 'var(--radius-sm)',
+    fontWeight: 600,
+    fontSize: 'var(--fs-md)',
     cursor: 'pointer',
-    transition: 'var(--transition)',
+    transition: 'var(--transition-base)',
   },
 
   modalOverlay: {
@@ -310,13 +316,13 @@ export const styles = {
     borderRadius: '999px',
     fontSize: '0.8rem',
     fontWeight: 600,
-    color: status === 'active' ? '#10b981' : '#ef4444',
+    color: status === 'active' ? '#10b981' : '#94a3b8',
     background: status === 'active'
       ? 'rgba(16,185,129,0.12)'
-      : 'rgba(239,68,68,0.12)',
+      : 'rgba(148,163,184,0.12)',
     border: status === 'active'
       ? '1px solid rgba(16,185,129,0.25)'
-      : '1px solid rgba(239,68,68,0.25)',
+      : '1px solid rgba(148,163,184,0.25)',
   }),
 
   statusDot: (status) => ({
@@ -324,7 +330,7 @@ export const styles = {
     height: '8px',
     borderRadius: '50%',
     display: 'inline-block',
-    backgroundColor: status === 'active' ? '#10b981' : '#ef4444',
+    backgroundColor: status === 'active' ? '#10b981' : '#94a3b8',
   }),
 
   btnToggle: (status) => ({

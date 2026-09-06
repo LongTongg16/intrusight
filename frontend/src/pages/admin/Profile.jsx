@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import { changePassword } from "../../services/api";
+import { PageHeader } from "../../components/ui";
 import "./admin.css";
 
 const API_BASE =
@@ -49,7 +51,7 @@ const s = {
     boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
   }),
   heroCard: {
-    background: "var(--hero-gradient, linear-gradient(135deg, #1e3a5f 0%, #1e293b 60%, #0f172a 100%))",
+    background: "var(--surface-2)",
     border: "1px solid var(--border-primary)",
     borderRadius: "16px",
     padding: "2rem",
@@ -73,16 +75,6 @@ const s = {
     position: "relative",
     flexShrink: 0,
   },
-  onlineDot: {
-    position: "absolute",
-    bottom: "4px",
-    right: "4px",
-    width: "14px",
-    height: "14px",
-    borderRadius: "50%",
-    backgroundColor: "#10b981",
-    border: "2px solid #1e3a5f",
-  },
   badgeRow: {
     display: "flex",
     gap: "8px",
@@ -105,12 +97,19 @@ const s = {
     marginBottom: "1.5rem",
   },
   tabs: {
-    display: "flex",
-    gap: "0.5rem",
-    flexWrap: "wrap",
-    borderBottom: "1px solid var(--border-primary)",
-    paddingBottom: "0.75rem",
+    display: "inline-flex",
+    gap: "2px",
+    padding: "3px",
     marginBottom: "1.5rem",
+    // The wrapper is layout only. It used to carry a surface and border,
+    // which on the white-yellow theme resolved to #fffbeb on #fde68a and
+    // drew a pale bubble around the two pills. The border stays declared but
+    // transparent so the box model — and therefore the pills' position — is
+    // unchanged.
+    border: "1px solid transparent",
+    borderRadius: "var(--radius-md)",
+    background: "transparent",
+    flexWrap: "wrap",
   },
   tabBtn: (active) => ({
     backgroundColor: active ? "var(--bg-primary)" : "transparent",
@@ -209,8 +208,8 @@ const s = {
     padding: "0.7rem 1.4rem",
     borderRadius: "8px",
     border: "none",
-    backgroundColor: "var(--accent-primary)",
-    color: "#fff",
+    backgroundColor: "var(--accent-solid)",
+    color: "var(--accent-on)",
     cursor: "pointer",
     fontWeight: 600,
   },
@@ -236,7 +235,6 @@ const s = {
 const TABS = [
   { key: "PERSONAL", label: "Personal Info" },
   { key: "SECURITY", label: "Security Settings" },
-  { key: "NOTIF",    label: "Notification Preferences" },
 ];
 
 function Profile() {
@@ -248,17 +246,11 @@ function Profile() {
 
   const [userData, setUserData] = useState({
     full_name: "", email: "", role: "", status: "active",
-    phone: "", telegram_id: "",
   });
 
   const [formData, setFormData] = useState({
-    full_name: "", email: "", phone: "", telegram_id: "",
+    full_name: "", email: "",
   });
-
-  const [notifMobile,   setNotifMobile]   = useState(true);
-  const [notifTelegram, setNotifTelegram] = useState(true);
-  const [notifEmail,    setNotifEmail]    = useState(false);
-  const [severityPref,  setSeverityPref]  = useState("HIGH_ONLY");
 
   const [showPasswordModal,    setShowPasswordModal]    = useState(false);
   const [passwordForm,         setPasswordForm]         = useState({ current: "", newPass: "", confirm: "" });
@@ -285,10 +277,8 @@ function Profile() {
         const data = res.data;
         setUserData(data);
         setFormData({
-          full_name:   data.full_name   || "",
-          email:       data.email       || "",
-          phone:       data.phone       || "",
-          telegram_id: data.telegram_id || "",
+          full_name: data.full_name || "",
+          email:     data.email     || "",
         });
       } catch {
         showToast("Failed to load profile", "error");
@@ -308,7 +298,7 @@ function Profile() {
     try {
       await axios.put(
         `${API_BASE}/api/users/profile`,
-        { full_name: formData.full_name, phone: formData.phone, telegram_id: formData.telegram_id },
+        { full_name: formData.full_name },
         getAuthHeader()
       );
       setUserData((prev) => ({ ...prev, ...formData }));
@@ -324,8 +314,6 @@ function Profile() {
     }
   };
 
-  const handleSaveNotif = () => showToast("Preferences saved!");
-
   const handlePasswordSubmit = async () => {
     const errors = {};
     const strength = getPasswordStrength(passwordForm.newPass);
@@ -336,17 +324,13 @@ function Profile() {
 
     setIsPasswordSubmitting(true);
     try {
-      await axios.put(
-        `${API_BASE}/api/users/profile/password`,
-        { current_password: passwordForm.current, new_password: passwordForm.newPass },
-        getAuthHeader()
-      );
+      await changePassword(passwordForm.current, passwordForm.newPass);
       setShowPasswordModal(false);
       setPasswordForm({ current: "", newPass: "", confirm: "" });
       setPasswordErrors({});
       showToast("Password updated!");
     } catch (err) {
-      showToast(err.response?.data?.detail || "Update failed", "error");
+      showToast(err.message || "Update failed", "error");
     } finally {
       setIsPasswordSubmitting(false);
     }
@@ -369,18 +353,15 @@ function Profile() {
     <div style={s.page}>
       {toast && <div style={s.toast(toast.type)}>{toast.message}</div>}
 
-      <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem", color: "var(--text-primary)" }}>
-        Admin Profile
-      </h1>
-      <p style={{ color: "var(--text-secondary)", marginBottom: "2rem" }}>
-        Manage your admin account settings
-      </p>
+      <PageHeader
+        title="Profile"
+        subtitle="Your administrator account details and password. Only your full name can be changed here."
+      />
 
       {/* ── Hero Card ── */}
       <div style={s.heroCard}>
         <div style={s.avatar}>
           {initials}
-          <div style={s.onlineDot} />
         </div>
         <div>
           <h2 style={{ margin: 0, color: "#ffffff" }}>{userData.full_name}</h2>
@@ -414,8 +395,9 @@ function Profile() {
           <form onSubmit={handleSaveProfile}>
             <div style={s.inputGrid}>
               <div style={s.inputWrap}>
-                <label style={s.label}>Full Name</label>
+                <label style={s.label} htmlFor="admin-full-name">Full name</label>
                 <input
+                  id="admin-full-name"
                   style={s.input(editing)}
                   value={formData.full_name}
                   onChange={(e) => setFormData((p) => ({ ...p, full_name: e.target.value }))}
@@ -423,27 +405,8 @@ function Profile() {
                 />
               </div>
               <div style={s.inputWrap}>
-                <label style={s.label}>Email</label>
-                <input style={s.input(false)} value={formData.email} readOnly />
-              </div>
-              <div style={s.inputWrap}>
-                <label style={s.label}>Phone</label>
-                <input
-                  style={s.input(editing)}
-                  value={formData.phone}
-                  onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
-                  readOnly={!editing}
-                />
-              </div>
-              <div style={s.inputWrap}>
-                <label style={s.label}>Telegram ID</label>
-                <input
-                  style={s.input(editing)}
-                  value={formData.telegram_id}
-                  onChange={(e) => setFormData((p) => ({ ...p, telegram_id: e.target.value }))}
-                  readOnly={!editing}
-                  placeholder="e.g. 123456789"
-                />
+                <label style={s.label} htmlFor="admin-email">Email</label>
+                <input id="admin-email" style={s.input(false)} value={formData.email} readOnly />
               </div>
             </div>
 
@@ -465,10 +428,8 @@ function Profile() {
                       onClick={() => {
                         setEditing(false);
                         setFormData({
-                          full_name:   userData.full_name,
-                          email:       userData.email,
-                          phone:       userData.phone,
-                          telegram_id: userData.telegram_id,
+                          full_name: userData.full_name,
+                          email:     userData.email,
                         });
                       }}
                     >
@@ -544,21 +505,6 @@ function Profile() {
                   <small style={{ color: "#ef4444" }}>{passwordErrors.confirm}</small>
                 )}
               </div>
-              <div style={s.inputWrap}>
-                <label style={s.label}>MFA</label>
-                <div style={{
-                  display: "flex", gap: "0.6rem", alignItems: "center",
-                  padding: "0.75rem 0.9rem",
-                  border: "1px solid var(--border-primary)",
-                  borderRadius: "8px",
-                  backgroundColor: "var(--bg-primary)",
-                }}>
-                  <input type="checkbox" defaultChecked />
-                  <span style={{ color: "var(--text-primary)", fontSize: "0.9rem" }}>
-                    Enable multi-factor authentication
-                  </span>
-                </div>
-              </div>
             </div>
 
             <div style={{
@@ -577,58 +523,10 @@ function Profile() {
               >
                 {isPasswordSubmitting ? "Updating…" : "Update Password"}
               </button>
-              <button style={s.btnSecondary} onClick={() => showToast("MFA setup (mock)")}>
-                Setup MFA
-              </button>
             </div>
           </div>
         )}
 
-        {/* ── Notification Preferences ── */}
-        {tab === "NOTIF" && (
-          <div>
-            <div style={s.prefRow}>
-              {[
-                ["Mobile Push", notifMobile,   setNotifMobile],
-                ["Telegram",    notifTelegram,  setNotifTelegram],
-                ["Email",       notifEmail,     setNotifEmail],
-              ].map(([label, val, setter]) => (
-                <label key={label} style={s.checkItem(val)}>
-                  <input
-                    type="checkbox"
-                    checked={val}
-                    onChange={(e) => setter(e.target.checked)}
-                    style={{ accentColor: "#3b82f6" }}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-            <div style={s.divider} />
-            <div style={s.inputWrap}>
-              <label style={s.label}>Severity Selection</label>
-              <select
-                style={s.select}
-                value={severityPref}
-                onChange={(e) => setSeverityPref(e.target.value)}
-              >
-                <option value="HIGH_ONLY">High only</option>
-                <option value="HIGH_MED">High &amp; Medium</option>
-                <option value="ALL">All severities</option>
-              </select>
-            </div>
-            <div style={{
-              display: "flex", justifyContent: "flex-end",
-              marginTop: "2rem",
-              borderTop: "1px solid var(--border-primary)",
-              paddingTop: "1.5rem",
-            }}>
-              <button style={s.btnGreen} onClick={handleSaveNotif}>
-                Save Preferences
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Password Modal ── */}

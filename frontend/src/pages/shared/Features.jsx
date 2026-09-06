@@ -1,267 +1,214 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import PublicNavbar from "../../components/PublicNavbar";
+import "./public.css";
 
-const features = [
+const FEATURE_GROUPS = [
   {
-    icon: "🚨",
-    title: "Real-time Alerts",
-    text: "Monitor threats from Snort, Suricata, Zeek, and Kismet the moment they occur.",
-    tags: ["Real-time", "Multi-IDS"],
-    accent: "#ef4444",
+    group: "Ingestion",
+    heading: "Getting alerts in",
+    blurb:
+      "Each engine writes a different format in a different place. These parsers read what is already on disk and reduce it to one record shape.",
+    features: [
+      {
+        title: "Multi-engine normalization",
+        text:
+          "Separate parsers for Suricata eve.json, Snort alert output, Zeek logs and Kismet captures map each record onto one shared alert schema.",
+        tags: ["Suricata", "Snort", "Zeek", "Kismet"],
+      },
+      {
+        title: "Engine attribution",
+        text:
+          "Every stored alert keeps the engine that produced it, so the source is visible in the queue and preserved in exports.",
+        tags: ["Per-alert source"],
+      },
+      {
+        title: "Authenticated ingest endpoint",
+        text:
+          "Ingestion posts to a dedicated endpoint guarded by a separate ingest key, kept distinct from analyst session credentials.",
+        tags: ["Ingest key"],
+      },
+    ],
   },
   {
-    icon: "🔍",
-    title: "Advanced Analytics",
-    text: "Visualize attack patterns and threat intelligence with interactive charts and filters.",
-    tags: ["Charts", "Filtering"],
-    accent: "#3b82f6",
+    group: "Triage",
+    heading: "Working the queue",
+    blurb:
+      "Once alerts share a schema they can share a workflow — filtered, annotated and moved through a fixed set of states.",
+    features: [
+      {
+        title: "Severity classification",
+        text:
+          "Engine severity is mapped to three levels — high, medium and low — and shown consistently across every view.",
+        tags: ["3 levels"],
+      },
+      {
+        title: "Filtering and search",
+        text:
+          "Severity and status filters are applied server-side. Free-text search across address, port, protocol and signature runs over the returned set.",
+        tags: ["Server filters", "Client search"],
+      },
+      {
+        title: "Status workflow",
+        text:
+          "Move an alert through new, investigating and resolved. The current state is shown as a labelled badge, not colour alone.",
+        tags: ["new → investigating → resolved"],
+      },
+      {
+        title: "Investigation notes",
+        text:
+          "Free-text notes are attached to an individual alert and stored with it, keeping the reasoning next to the evidence.",
+        tags: ["Per-alert"],
+      },
+    ],
   },
   {
-    icon: "⚙️",
-    title: "Multi-IDS Support",
-    text: "A unified interface for all your intrusion detection systems — no more switching tools.",
-    tags: ["Snort", "Suricata", "Zeek", "Kismet"],
-    accent: "#8b5cf6",
-  },
-  {
-    icon: "📄",
-    title: "Evidence Reports",
-    text: "Export incidents and alert data as PDF or CSV for audit trails and compliance.",
-    tags: ["PDF", "CSV"],
-    accent: "#10b981",
-  },
-  {
-    icon: "🔔",
-    title: "Instant Notifications",
-    text: "High-severity alerts push directly to your Telegram — stay informed away from the desk.",
-    tags: ["Telegram", "High-severity"],
-    accent: "#f59e0b",
-  },
-  {
-    icon: "📝",
-    title: "Incident Management",
-    text: "Group related alerts, attach investigation notes, and track triage progress over time.",
-    tags: ["Notes", "Triage"],
-    accent: "#06b6d4",
+    group: "Analysis and output",
+    heading: "Making sense of it",
+    blurb:
+      "Aggregate views and exports built on the same stored records, so a chart and a report never disagree with the table.",
+    features: [
+      {
+        title: "Severity mix and hourly activity",
+        text:
+          "The dashboard renders the loaded alert set as a severity donut and a bar chart of alerts bucketed by the hour the engine reported them. Both are fixed views; there is no chart-type selector.",
+        tags: ["Recharts"],
+      },
+      {
+        title: "Geographic view",
+        text:
+          "Addresses resolved at ingest time are plotted on a map. Resolution is best-effort and some alerts will have no location.",
+        tags: ["Leaflet", "Best-effort"],
+      },
+      {
+        title: "CSV and PDF export",
+        text:
+          "Export the alert set currently matching your filters as CSV, or render it to a PDF report for documentation.",
+        tags: ["CSV", "PDF"],
+      },
+      {
+        title: "Role separation",
+        text:
+          "Analyst and administrator interfaces are separate. Administrators manage accounts, log sources and database maintenance.",
+        tags: ["Analyst", "Administrator"],
+      },
+    ],
   },
 ];
 
 function Features() {
-  const navigate = useNavigate();
-
   return (
-    <div style={styles.page}>
-      <PublicNavbar active="Features" />
+    <div className="p-page">
+      <PublicNavbar />
 
-      {/* Hero Section */}
-      <div style={styles.hero}>
-        <div style={styles.heroLeft}>
-          <div style={styles.heroBadge}>What's inside</div>
-          <h1 style={styles.heroTitle}>Powerful Features for Network Security</h1>
-          <p style={styles.heroSubtitle}>Everything you need to detect, analyse, and respond to threats</p>
-          <div style={styles.heroButtons}>
-            <button style={styles.primaryButton} onClick={() => navigate("/demo")}>
-              Try Demo
-            </button>
-            <button style={styles.secondaryButton} onClick={() => navigate("/register")}>
-              Get Started
-            </button>
-          </div>
-        </div>
-        <div style={styles.heroRight}>
-          <img
-            src="/DashboardDemo.png"
-            alt="IDS Dashboard Preview"
-            style={styles.heroImage}
-          />
-        </div>
-      </div>
+      <main className="p-main">
+        <section className="p-shell p-hero">
+          <div className="p-hero__body">
+            <p className="p-badge">
+              <span className="p-badge__dot" aria-hidden="true" />
+              Feature reference
+            </p>
 
-      <hr style={styles.divider} />
+            <h1 className="p-h1">
+              Everything the interface{" "}
+              <span className="p-accent-text">currently does</span>
+            </h1>
 
-      {/* Features Grid */}
-      <div style={styles.featuresGrid}>
-        {features.map((f) => (
-          <div key={f.title} style={styles.featureCard}>
-            <div style={{ ...styles.featureAccentBar, backgroundColor: f.accent }} />
-            <div style={styles.featureIcon}>{f.icon}</div>
-            <h3 style={styles.featureTitle}>{f.title}</h3>
-            <p style={styles.featureText}>{f.text}</p>
-            <div style={styles.tagRow}>
-              {f.tags.map((tag) => (
-                <span key={tag} style={{ ...styles.tag, borderColor: f.accent, color: f.accent }}>
-                  {tag}
-                </span>
-              ))}
+            <p className="p-lede">
+              This page lists implemented behavior only. Where a capability has
+              a limitation worth knowing about, it is stated alongside the
+              feature rather than omitted.
+            </p>
+
+            <div className="p-hero__actions">
+              <Link to="/demo" className="p-btn p-btn--primary">
+                Explore the demo
+              </Link>
+              <Link to="/register" className="p-btn p-btn--secondary">
+                Create an account
+              </Link>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Footer */}
-      <footer style={styles.footer}>
-        © 2026 Intrusion Detection Dashboard
+          <div className="p-preview">
+            <div style={{ padding: "var(--p-s5)" }}>
+              <h2 className="p-h3">Data refresh model</h2>
+              <p className="p-body">
+                Views fetch alerts when they load and when you press refresh.
+                IntruSight does not poll on a timer, hold a socket open, or push
+                updates to the browser — anything describing it as “real-time”
+                would be inaccurate.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {FEATURE_GROUPS.map(({ group, heading, blurb, features }, groupIndex) => {
+          const id = `group-${group.toLowerCase().replace(/\s+/g, "-")}`;
+          const banded = groupIndex % 2 === 0;
+          return (
+            <section key={group} className={banded ? "p-band" : undefined} aria-labelledby={id}>
+              <div className="p-shell p-section">
+                <div className="p-split">
+                  <div className="p-split__aside">
+                    <span className="p-eyebrow">{group}</span>
+                    <h2 id={id} className="p-h2">{heading}</h2>
+                    <p className="p-body" style={{ marginTop: "var(--p-s5)" }}>
+                      {blurb}
+                    </p>
+                  </div>
+
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    {features.map((f) => (
+                      <li key={f.title} className="p-feature">
+                        <span className="p-feature__mark" aria-hidden="true">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                        </span>
+                        <div>
+                          <h3 className="p-h3" style={{ marginBottom: "var(--p-s2)" }}>
+                            {f.title}
+                          </h3>
+                          <p className="p-body">{f.text}</p>
+                          <ul className="p-tags">
+                            {f.tags.map((tag) => (
+                              <li key={tag} className="p-tag">{tag}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </section>
+          );
+        })}
+
+        <section className="p-shell p-section p-section--sm">
+          <div className="p-cta">
+            <div>
+              <h2 className="p-h2">Point it at your own engine output</h2>
+              <p className="p-body" style={{ marginTop: "var(--p-s1)" }}>
+                Create an account, then run the ingestor for whichever engines
+                you have.
+              </p>
+            </div>
+            <Link to="/register" className="p-btn p-btn--primary">
+              Create an account
+            </Link>
+          </div>
+        </section>
+      </main>
+
+      <footer className="p-footer">
+        <div className="p-shell p-footer__inner">
+          <span>IntruSight — educational network intrusion alert management platform.</span>
+          <span>FYP-26-S1-20</span>
+        </div>
       </footer>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    backgroundColor: "#0f172a",
-    color: "#f1f5f9",
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    fontFamily: "sans-serif",
-  },
-  hero: {
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "4rem 2rem",
-    gap: "4rem",
-    maxWidth: "1200px",
-    margin: "0 auto",
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  heroLeft: {
-    flex: 1,
-    minWidth: "300px",
-  },
-  heroBadge: {
-    display: "inline-block",
-    backgroundColor: "rgba(59,130,246,0.12)",
-    border: "1px solid rgba(59,130,246,0.3)",
-    color: "#60a5fa",
-    borderRadius: "999px",
-    padding: "0.3rem 0.9rem",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    marginBottom: "1rem",
-    letterSpacing: "0.03em",
-  },
-  heroTitle: {
-    fontSize: "2.5rem",
-    fontWeight: "bold",
-    lineHeight: "1.3",
-    marginBottom: "1.5rem",
-    color: "#f1f5f9",
-  },
-  heroSubtitle: {
-    color: "#94a3b8",
-    fontSize: "1.1rem",
-    marginBottom: "2rem",
-    lineHeight: "1.6",
-  },
-  heroButtons: {
-    display: "flex",
-    gap: "1rem",
-    flexWrap: "wrap",
-  },
-  primaryButton: {
-    padding: "0.75rem 1.75rem",
-    backgroundColor: "#3b82f6",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer",
-  },
-  secondaryButton: {
-    padding: "0.75rem 1.75rem",
-    backgroundColor: "transparent",
-    color: "#60a5fa",
-    border: "2px solid #60a5fa",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer",
-  },
-  heroRight: {
-    flex: 1,
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    minWidth: "300px",
-  },
-  heroImage: {
-    width: "100%",
-    maxWidth: "550px",
-    height: "auto",
-    borderRadius: "20px",
-    boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
-  },
-  divider: {
-    borderColor: "#334155",
-    margin: "0 2rem",
-  },
-  featuresGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "1.5rem",
-    padding: "3rem 2rem",
-    maxWidth: "1200px",
-    margin: "0 auto",
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  featureCard: {
-    backgroundColor: "#111c33",
-    padding: "1.75rem",
-    paddingTop: "0",
-    borderRadius: "16px",
-    border: "1px solid #1e3a5f",
-    overflow: "hidden",
-    position: "relative",
-  },
-  featureAccentBar: {
-    height: "3px",
-    margin: "0 -1.75rem 1.5rem",
-    borderRadius: "0",
-  },
-  featureIcon: {
-    fontSize: "2rem",
-    marginBottom: "0.75rem",
-  },
-  featureTitle: {
-    fontSize: "1.1rem",
-    fontWeight: "700",
-    color: "#f1f5f9",
-    marginBottom: "0.6rem",
-  },
-  featureText: {
-    color: "#94a3b8",
-    lineHeight: "1.6",
-    fontSize: "0.9rem",
-    marginBottom: "1rem",
-  },
-  tagRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "0.4rem",
-  },
-  tag: {
-    fontSize: "0.72rem",
-    fontWeight: 600,
-    padding: "0.2rem 0.55rem",
-    borderRadius: "999px",
-    border: "1px solid",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    letterSpacing: "0.03em",
-  },
-  footer: {
-    marginTop: "auto",
-    textAlign: "right",
-    padding: "2rem",
-    color: "#475569",
-    fontSize: "0.9rem",
-    borderTop: "1px solid #1e293b",
-    backgroundColor: "#1e293b",
-  },
-};
 
 export default Features;

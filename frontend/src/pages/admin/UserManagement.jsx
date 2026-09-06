@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 import { styles } from "./UserManagement.styles";
+import {
+  PageHeader, Button, Icon, Notice, EmptyState, LoadingRows,
+} from "../../components/ui";
+import "./admin.css";
+
+const TABS = [
+  { key: "analysts", label: "Analysts" },
+  { key: "admins",   label: "Administrators" },
+  { key: "pending",  label: "Pending" },
+];
+
+const roleKey = (role) =>
+  String(role || "").toLowerCase().includes("admin") ? "admin" : "analyst";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
@@ -90,8 +103,8 @@ function ActionMenu({ user, isSelf, onApprove, onReject, onSuspend, onActivate, 
 
   const items = [];
   if (user.status?.toLowerCase() === "pending") {
-    items.push({ label: "✓ Approve", action: onApprove, color: "#10b981" });
-    items.push({ label: "✕ Reject",  action: onReject,  color: "#ef4444" });
+    items.push({ label: "Approve", action: onApprove, color: "var(--feedback-success)" });
+    items.push({ label: "Reject",  action: onReject,  color: "var(--feedback-error)" });
   } else if (user.status === "active") {
     items.push({ label: "Edit", action: onEdit });
     if (!isSelf) items.push({ label: "Suspend", action: onSuspend });
@@ -107,13 +120,15 @@ function ActionMenu({ user, isSelf, onApprove, onReject, onSuspend, onActivate, 
       <button
         style={styles.menuTrigger}
         onClick={toggleMenu}
-        title="Actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Actions for ${user.full_name}`}
       >
-        ···
+        <Icon.dots />
       </button>
       {open && (
-        <div style={{ 
-          ...styles.dropdown, 
+        <div className="ui-pop" role="menu" style={{
+          ...styles.dropdown,
           position: "fixed", 
           top: `${coords.top}px`, 
           left: `${coords.left}px`,
@@ -151,7 +166,6 @@ function ActionMenu({ user, isSelf, onApprove, onReject, onSuspend, onActivate, 
 function UserManagement() {
   const [users, setUsers]           = useState([]);
   const [loading, setLoading]       = useState(true);
-  const [hoveredRow, setHoveredRow] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab]   = useState("analysts");
 
@@ -187,8 +201,13 @@ function UserManagement() {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE}/api/users`, getAuthHeader());
-      setUsers(response.data);
+      // The endpoint has returned both a bare array and an {items:[...]}
+      // envelope. Anything non-array used to reach `[...users]` and throw
+      // "users is not iterable", which unmounted the whole app.
+      const payload = response.data;
+      setUsers(Array.isArray(payload) ? payload : (payload?.items ?? []));
     } catch (err) {
+      setUsers([]);
       showToast(err.response?.data?.detail || "Failed to fetch users", "error");
     } finally {
       setLoading(false);
@@ -266,13 +285,6 @@ function UserManagement() {
   const closeAddModal = () => { setShowAddModal(false); setAddForm({ full_name: "", email: "", role: "Security Analyst", password: "" }); };
   const openConfirm = (message, onConfirm) => setConfirmModal({ message, onConfirm });
 
-  const tabStyle = (id) => ({
-    padding: "10px 20px", cursor: "pointer",
-    color: activeTab === id ? "var(--accent-primary)" : "#94a3b8",
-    borderBottom: activeTab === id ? "2px solid var(--accent-primary)" : "2px solid transparent",
-    fontWeight: activeTab === id ? "600" : "400",
-    transition: "all 0.2s ease",
-  });
 
   const submittingStyle = { opacity: 0.6, cursor: "not-allowed" };
 
@@ -285,105 +297,182 @@ function UserManagement() {
       )}
 
       <div style={styles.content}>
-        <div style={styles.header}>
-          <h1 style={styles.pageTitle}>User Management</h1>
-          <p style={styles.subtitle}>System Access Control Panel</p>
-        </div>
+        <PageHeader
+          title="User Management"
+          subtitle="Accounts that can sign in to this deployment, and the approval queue for new registrations."
+          actions={
+            <Button onClick={() => setShowAddModal(true)}>
+              <Icon.userplus /> Add user
+            </Button>
+          }
+        />
 
-        <div style={{ display: "flex", gap: "10px", marginBottom: "20px", borderBottom: "1px solid #1e293b" }}>
-          <div style={tabStyle("analysts")} onClick={() => setActiveTab("analysts")}>Analysts</div>
-          <div style={tabStyle("admins")}   onClick={() => setActiveTab("admins")}>Administrators</div>
-          <div style={tabStyle("pending")}  onClick={() => setActiveTab("pending")}>
-            Pending Requests{" "}
-            {pendingCount > 0 && (
-              <span style={{ background: "#ef4444", color: "white", borderRadius: "10px", padding: "1px 6px", fontSize: "0.7rem", marginLeft: "5px" }}>
-                {pendingCount}
-              </span>
-            )}
+        <div className="ui-enter">
+          <div className="um-toolbar">
+            <div
+              role="tablist"
+              aria-label="User groups"
+              className="um-tabs"
+            >
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === t.key}
+                  className={`um-tab${activeTab === t.key ? " is-active" : ""}`}
+                  onClick={() => setActiveTab(t.key)}
+                >
+                  {t.label}
+                  {t.key === "pending" && pendingCount > 0 && (
+                    <span className="um-tab__count">{pendingCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="um-search">
+              <Icon.search />
+              <input
+                type="text"
+                placeholder="Search by name or email"
+                aria-label="Search users by name or email"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="um-search__clear"
+                  aria-label="Clear search"
+                  onClick={() => setSearchTerm("")}
+                >
+                  <Icon.close />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div style={styles.controls}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ ...styles.searchInput, width: "100%" }}
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm("")}
-                style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "1.2rem" }}
-              >✕</button>
-            )}
+          {/* Pending registrations are the one thing on this page that needs
+              acting on, so the tab says so plainly rather than relying on a
+              red dot to imply urgency. */}
+          {activeTab === "pending" && pendingCount > 0 && (
+            <Notice tone="info">
+              {pendingCount} {pendingCount === 1 ? "account is" : "accounts are"} waiting
+              for approval. Approving one lets that person sign in; rejecting
+              leaves the account unable to authenticate.
+            </Notice>
+          )}
+
+          <div className="ops__head">
+            <h2 className="ops__title">
+              {activeTab === "pending" ? "Review queue" : "Accounts"}
+            </h2>
+            <span className="ops__meta">
+              {processedUsers.length} {processedUsers.length === 1 ? "account" : "accounts"}
+            </span>
           </div>
-          <button style={styles.addUserBtn} onClick={() => setShowAddModal(true)}>+ Add User</button>
-        </div>
 
-        <div style={{ marginBottom: "10px", fontSize: "0.85rem", color: "#64748b" }}>
-          Showing {processedUsers.length} {processedUsers.length === 1 ? "user" : "users"}
-        </div>
-
-        {loading ? (
-          <div style={{ color: "white", textAlign: "center", padding: "50px" }}>Loading...</div>
-        ) : (
-          <div style={styles.tableSection}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Name</th>
-                  <th style={styles.th}>Email</th>
-                  <th style={styles.th}>Role</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processedUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ ...styles.td, textAlign: "center", color: "#64748b", padding: "40px" }}>No results found.</td>
-                  </tr>
-                ) : (
-                  processedUsers.map((user) => (
-                    <tr
-                      key={getId(user)}
-                      style={hoveredRow === getId(user) ? styles.trHover : styles.tr}
-                      onMouseEnter={() => setHoveredRow(getId(user))}
-                      onMouseLeave={() => setHoveredRow(null)}
-                    >
-                      <td style={styles.td}>{user.full_name}</td>
-                      <td style={styles.td}>{user.email}</td>
-                      <td style={styles.td}><span style={styles.roleBadge(user.role)}>{user.role}</span></td>
-                      <td style={styles.td}><span style={styles.statusBadge(user.status)}>{user.status}</span></td>
-                      <td style={styles.td}>
-                        <ActionMenu
-                          user={user}
-                          isSelf={getId(user) === currentAdminId}
-                          onApprove={() => openConfirm(`Approve ${user.full_name}?`, () => handleUpdateStatus(getId(user), "active"))}
-                          onReject={() => openConfirm(`Reject ${user.full_name}?`, () => handleUpdateStatus(getId(user), "rejected"))}
-                          onSuspend={() => openConfirm(`Suspend ${user.full_name}?`, () => handleUpdateStatus(getId(user), "suspended"))}
-                          onActivate={() => openConfirm(`Reactivate ${user.full_name}?`, () => handleUpdateStatus(getId(user), "active"))}
-                          onEdit={() => {
-                            setEditingUser(user);
-                            setEditForm({ full_name: user.full_name, role: user.role, isSelf: getId(user) === currentAdminId });
-                          }}
-                        />
-                      </td>
+          <section className="ui-panel">
+            {loading ? (
+              <LoadingRows rows={4} label="Loading accounts" />
+            ) : processedUsers.length === 0 ? (
+              <EmptyState
+                icon="users"
+                title={searchTerm ? "No accounts match that search" : "Nothing in this group"}
+              >
+                {searchTerm
+                  ? "Try a different name or email address."
+                  : activeTab === "pending"
+                    ? "There are no registrations waiting for approval."
+                    : "No accounts have this role yet."}
+              </EmptyState>
+            ) : (
+              <div className="table-scroll">
+                <table className="alerts-table um-table">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th><span className="visually-hidden">Actions</span></th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </thead>
+                  <tbody>
+                    {processedUsers.map((user) => (
+                      <tr key={getId(user)}>
+                        <td>
+                          <div className="um-who">
+                            <span className="um-avatar" aria-hidden="true">
+                              {(user.full_name || "?").charAt(0).toUpperCase()}
+                            </span>
+                            <span className="um-who__body">
+                              <span className="um-who__name">
+                                {user.full_name}
+                                {getId(user) === currentAdminId && (
+                                  <span className="um-you">You</span>
+                                )}
+                              </span>
+                              <span className="um-who__mail ui-mono">{user.email}</span>
+                            </span>
+                          </div>
+                        </td>
+                        <td><span className={`um-role um-role--${roleKey(user.role)}`}>{user.role}</span></td>
+                        <td><span className={`um-status um-status--${String(user.status || "").toLowerCase()}`}>
+                          <span className="um-status__dot" aria-hidden="true" />
+                          {user.status}
+                        </span></td>
+                        <td className="um-actions">
+                          {activeTab === "pending" && (
+                            <span className="um-review">
+                              <Button
+                                size="sm"
+                                onClick={() => openConfirm(
+                                  `Approve ${user.full_name}?`,
+                                  () => handleUpdateStatus(getId(user), "active")
+                                )}
+                              >
+                                <Icon.check /> Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={() => openConfirm(
+                                  `Reject ${user.full_name}?`,
+                                  () => handleUpdateStatus(getId(user), "rejected")
+                                )}
+                              >
+                                Reject
+                              </Button>
+                            </span>
+                          )}
+                          <ActionMenu
+                            user={user}
+                            isSelf={getId(user) === currentAdminId}
+                            onApprove={() => openConfirm(`Approve ${user.full_name}?`, () => handleUpdateStatus(getId(user), "active"))}
+                            onReject={() => openConfirm(`Reject ${user.full_name}?`, () => handleUpdateStatus(getId(user), "rejected"))}
+                            onSuspend={() => openConfirm(`Suspend ${user.full_name}?`, () => handleUpdateStatus(getId(user), "suspended"))}
+                            onActivate={() => openConfirm(`Reactivate ${user.full_name}?`, () => handleUpdateStatus(getId(user), "active"))}
+                            onEdit={() => {
+                              setEditingUser(user);
+                              setEditForm({ full_name: user.full_name, role: user.role, isSelf: getId(user) === currentAdminId });
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
 
       {/* Edit Modal */}
       {editingUser && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className="ui-backdrop" style={styles.modalOverlay}>
+          <div className="ui-pop" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={{ ...styles.modalHeader, display: "flex", alignItems: "center" }}>
               <h2 style={styles.modalTitle}>Edit User</h2>
               <button style={closeBtnStyle} onClick={closeEditModal} disabled={isEditSubmitting}>✕</button>
@@ -407,8 +496,8 @@ function UserManagement() {
 
       {/* Add Modal */}
       {showAddModal && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className="ui-backdrop" style={styles.modalOverlay}>
+          <div className="ui-pop" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={{ ...styles.modalHeader, display: "flex", alignItems: "center" }}>
               <h2 style={styles.modalTitle}>Add User</h2>
               <button style={closeBtnStyle} onClick={closeAddModal} disabled={isAddSubmitting}>✕</button>
@@ -432,8 +521,8 @@ function UserManagement() {
 
       {/* Confirm Modal */}
       {confirmModal && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modal, maxWidth: "360px" }} onClick={(e) => e.stopPropagation()}>
+        <div className="ui-backdrop" style={styles.modalOverlay}>
+          <div className="ui-pop" style={{ ...styles.modal, maxWidth: "360px" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ ...styles.modalHeader, display: "flex", alignItems: "center" }}>
               <h2 style={styles.modalTitle}>Confirm</h2>
               <button style={closeBtnStyle} onClick={() => setConfirmModal(null)}>✕</button>
