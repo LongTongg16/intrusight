@@ -86,10 +86,7 @@ class TestAlertIngestion:
             mock_collection.insert_one.return_value.inserted_id = ObjectId()
             mock_get_col.return_value = mock_collection
 
-            with patch('routes.alerts.get_location_from_ip') as mock_geo, patch(
-                'routes.alerts.get_users_with_telegram_id',
-                new=AsyncMock(return_value=[]),
-            ):
+            with patch('routes.alerts.get_location_from_ip') as mock_geo:
                 mock_geo.return_value = None
 
                 response = client.post("/api/ingest/alerts", json=sample_alert)

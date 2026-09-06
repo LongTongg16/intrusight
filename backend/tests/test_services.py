@@ -15,7 +15,6 @@ from services.user_service import (
     get_user_by_email,
     get_user_by_id,
     get_all_users,
-    get_users_with_telegram_id,
     update_user_profile,
     change_password
 )
@@ -272,34 +271,13 @@ class TestGetAllUsers:
             assert result == []
 
 
-class TestGetUsersWithTelegram:
-    """Tests for getting users with telegram ID."""
+class TestTelegramRecipientLookupRemoved:
+    """The Telegram recipient lookup must no longer exist in the user service."""
 
-    @pytest.mark.asyncio
-    async def test_get_users_with_telegram_success(self):
-        """Test getting users with telegram ID."""
-        users = [
-            {"_id": ObjectId(), "email": "user1@example.com", "full_name": "User One", "telegram_id": "123456"},
-            {"_id": ObjectId(), "email": "user2@example.com", "full_name": "User Two", "telegram_id": "789012"}
-        ]
+    def test_user_service_exposes_no_telegram_recipient_lookup(self):
+        import services.user_service as user_service
 
-        with patch('services.user_service.db') as mock_db:
-            async def mock_async_iter(query):
-                for user in users:
-                    yield user
-
-            mock_db.users.find.return_value = mock_async_iter({"telegram_id": {"$exists": True}})
-
-            result = await get_users_with_telegram_id()
-
-            assert len(result) == 2
-            assert result[0]["telegram_id"] == "123456"
-            mock_db.users.find.assert_called_once_with(
-                {
-                    "status": "active",
-                    "telegram_id": {"$exists": True, "$nin": [None, ""]},
-                }
-            )
+        assert not hasattr(user_service, "get_users_with_telegram_id")
 
 
 class TestUpdateUserProfile:
@@ -320,53 +298,38 @@ class TestUpdateUserProfile:
                 return_value=updated_user
             )
 
-            result = await update_user_profile(str(user_id), "Updated Name", "")
+            result = await update_user_profile(str(user_id), "Updated Name")
 
             assert result is not None
             assert result["full_name"] == "Updated Name"
 
     @pytest.mark.asyncio
-    async def test_update_telegram_id(self):
-        """Test updating telegram ID only."""
+    async def test_update_writes_only_full_name(self):
+        """Profile updates must not write a telegram_id back to the user document."""
         user_id = ObjectId()
-        updated_user = {
-            "_id": user_id,
-            "email": "test@example.com",
-            "telegram_id": "987654"
-        }
 
         with patch('services.user_service.db') as mock_db:
-            mock_db.users.find_one = AsyncMock(return_value={"_id": user_id, "full_name": "Test", "email": "test@example.com"})
             mock_db.users.find_one_and_update = AsyncMock(
-                return_value=updated_user
+                return_value={"_id": user_id, "full_name": "New Name"}
             )
 
-            # Pass valid full_name along with telegram_id to avoid validation error
-            result = await update_user_profile(str(user_id), "Test", "987654")
+            await update_user_profile(str(user_id), "New Name")
 
-            assert result is not None
-            assert result["telegram_id"] == "987654"
+            _, kwargs = mock_db.users.find_one_and_update.call_args
+            args = mock_db.users.find_one_and_update.call_args[0]
+            update_document = args[1] if len(args) > 1 else kwargs["update"]
+
+            assert update_document == {"$set": {"full_name": "New Name"}}
+            assert "telegram_id" not in str(update_document)
 
     @pytest.mark.asyncio
-    async def test_update_both_fields(self):
-        """Test updating both full name and telegram ID."""
+    async def test_update_rejects_a_telegram_argument(self):
+        """The removed telegram_id parameter must not silently reappear."""
         user_id = ObjectId()
-        updated_user = {
-            "_id": user_id,
-            "full_name": "New Name",
-            "telegram_id": "123456"
-        }
 
-        with patch('services.user_service.db') as mock_db:
-            mock_db.users.find_one_and_update = AsyncMock(
-                return_value=updated_user
-            )
-
-            result = await update_user_profile(str(user_id), "New Name", "123456")
-
-            assert result is not None
-            assert result["full_name"] == "New Name"
-            assert result["telegram_id"] == "123456"
+        with patch('services.user_service.db'):
+            with pytest.raises(TypeError):
+                await update_user_profile(str(user_id), "New Name", "123456")
 
 
 class TestChangePassword:
@@ -508,3 +471,60 @@ class TestGeolocationService:
             result = get_location_from_ip("invalid_ip")
 
             assert result is None
+
+
+class TestMongoConfigurationIsCanonical:
+    """
+    Regression guard against a split-brain database configuration.
+
+    `services/alert_service.py` used to read `MONGO_URI` with a fallback to
+    `MONGODB_URL`, while `database.py` only ever read `MONGODB_URL`. Setting both
+    to different values silently pointed the alerts collection at one deployment
+    and users/maintenance/reports at another. `MONGODB_URL` is now the single
+    canonical variable for both clients.
+    """
+
+    def test_alert_service_exposes_no_mongo_uri_override(self):
+        import services.alert_service as alert_service
+
+        assert not hasattr(alert_service, "MONGO_URI")
+
+    def test_alert_service_and_database_read_the_same_url(self):
+        import database
+        import services.alert_service as alert_service
+
+        assert alert_service.MONGODB_URL == database.MONGODB_URL
+
+    def test_alert_service_and_database_use_the_same_database_name(self):
+        import database
+        import services.alert_service as alert_service
+
+        assert alert_service.DB_NAME == database.db.name
+
+    def test_a_stray_mongo_uri_cannot_redirect_the_alerts_collection(self):
+        """Setting MONGO_URI must have no effect on where alerts are stored."""
+        import importlib
+        import database
+        import services.alert_service as alert_service
+
+        canonical = database.MONGODB_URL
+
+        with patch.dict(
+            os.environ,
+            {
+                "MONGO_URI": "mongodb://someone-elses-host:27017",
+                "MONGODB_URL": canonical,
+            },
+            clear=False,
+        ):
+            try:
+                reloaded = importlib.reload(alert_service)
+
+                assert reloaded.MONGODB_URL == canonical
+                assert "someone-elses-host" not in str(reloaded.MONGODB_URL)
+                assert not hasattr(reloaded, "MONGO_URI")
+            finally:
+                # Restore the module to the ambient test configuration so later
+                # tests see the same client object they started with.
+                os.environ.pop("MONGO_URI", None)
+                importlib.reload(alert_service)

@@ -1,0 +1,62 @@
+[
+ {
+  "kismet.device.base.macaddr": "C4:12:F5:2A:9B:01",
+  "kismet.device.base.name": "IntruSight-Lab",
+  "kismet.device.base.type": "Wi-Fi AP",
+  "kismet.device.base.channel": "6",
+  "kismet.device.base.frequency": 2437000,
+  "kismet.device.base.band": "2.4GHz",
+  "kismet.device.base.crypt": "WPA2-PSK/CCMP",
+  "kismet.device.base.manuf": "TP-Link Technologies",
+  "kismet.device.base.signal": -46,
+  "kismet.device.base.packets.total": 8421,
+  "kismet.device.base.first_time": 1788685800,
+  "kismet.device.base.last_time": 1788686240,
+  "kismet.device.base.sensor": "KISMET-LAB-01"
+ },
+ {
+  "kismet.device.base.macaddr": "C4:12:F5:2A:9B:02",
+  "kismet.device.base.name": "IntruSight-Lab",
+  "kismet.device.base.type": "Wi-Fi AP",
+  "kismet.device.base.channel": "11",
+  "kismet.device.base.frequency": 2462000,
+  "kismet.device.base.band": "2.4GHz",
+  "kismet.device.base.crypt": "Open",
+  "kismet.device.base.manuf": "Unknown",
+  "kismet.device.base.signal": -71,
+  "kismet.device.base.packets.total": 190,
+  "kismet.device.base.first_time": 1788686180,
+  "kismet.device.base.last_time": 1788686255,
+  "kismet.device.base.sensor": "KISMET-LAB-01"
+ },
+ {
+  "kismet.device.base.macaddr": "A2:71:0E:33:44:55",
+  "kismet.device.base.name": "lab-laptop",
+  "kismet.device.base.type": "Wi-Fi Client",
+  "kismet.device.base.channel": "6",
+  "kismet.device.base.frequency": 2437000,
+  "kismet.device.base.band": "2.4GHz",
+  "kismet.device.base.crypt": "WPA2-PSK/CCMP",
+  "kismet.device.base.manuf": "Intel Corporate",
+  "kismet.device.base.signal": -58,
+  "kismet.device.base.packets.total": 3106,
+  "kismet.device.base.first_time": 1788685815,
+  "kismet.device.base.last_time": 1788686250,
+  "kismet.device.base.sensor": "KISMET-LAB-01"
+ },
+ {
+  "kismet.device.base.macaddr": "7E:03:B9:14:8C:2D",
+  "kismet.device.base.name": "(probing)",
+  "kismet.device.base.type": "Wi-Fi Client",
+  "kismet.device.base.channel": "1",
+  "kismet.device.base.frequency": 2412000,
+  "kismet.device.base.band": "2.4GHz",
+  "kismet.device.base.crypt": "Open",
+  "kismet.device.base.manuf": "Locally administered",
+  "kismet.device.base.signal": -79,
+  "kismet.device.base.packets.total": 44,
+  "kismet.device.base.first_time": 1788686120,
+  "kismet.device.base.last_time": 1788686248,
+  "kismet.device.base.sensor": "KISMET-LAB-01"
+ }
+]

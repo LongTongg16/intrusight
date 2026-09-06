@@ -723,357 +723,24 @@ body.action-menu-open {
    ========================================================================== */
 
 /* Section label with trailing rule */
-.maint-section-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--admin-secondary);
-  margin: 1.75rem 0 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.maint-section-label::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--admin-border);
-}
-
 /* Card */
-.maint-card {
-  background: var(--admin-card);
-  border: 1px solid var(--admin-border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.maint-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.875rem 1.25rem;
-  border-bottom: 1px solid var(--admin-border);
-}
-
-.maint-card__header-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--admin-text);
-}
-
-.maint-card__header-sub {
-  font-size: 0.75rem;
-  color: var(--admin-secondary);
-  margin-top: 2px;
-}
-
 /* Status grid — 2-col inside health card */
-.maint-status-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.maint-status-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.875rem 1.25rem;
-  border-bottom: 1px solid var(--admin-border);
-}
-.maint-status-item:nth-child(odd)  { border-right: 1px solid var(--admin-border); }
-.maint-status-item:nth-last-child(-n+2) { border-bottom: none; }
-
-.maint-status-item__label {
-  font-size: 0.78rem;
-  color: var(--admin-secondary);
-  white-space: nowrap;
-}
-
-.maint-status-item__value {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--admin-text);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  text-align: right;
-}
-
 /* Live dot */
-.maint-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.maint-dot--on {
-  background: var(--success);
-  box-shadow: 0 0 0 3px var(--success-bg);
-  animation: maint-pulse 2s infinite;
-}
-.maint-dot--off {
-  background: var(--error);
-}
 @keyframes maint-pulse {
   0%, 100% { box-shadow: 0 0 0 3px var(--success-bg); }
   50%       { box-shadow: 0 0 0 5px transparent; }
 }
 
 /* Stat number */
-.maint-stat-num {
-  font-size: 1.1rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--admin-text);
-}
-
 /* Mono text */
-.maint-mono {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-  font-size: 0.8rem;
-  color: var(--admin-text);
-}
-.maint-mono--sm { font-size: 0.72rem; color: var(--admin-secondary); }
-
 /* Summary stat cards */
-.maint-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.maint-summary-card {
-  background: var(--admin-card);
-  border: 1px solid var(--admin-border);
-  border-radius: 12px;
-  padding: 1.25rem;
-  position: relative;
-  overflow: hidden;
-}
-.maint-summary-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  border-radius: 12px 12px 0 0;
-}
-
-.maint-summary-card--blue::before  { background: linear-gradient(90deg, var(--primary), transparent); }
-.maint-summary-card--teal::before  { background: linear-gradient(90deg, var(--success), transparent); }
-.maint-summary-card--amber::before { background: linear-gradient(90deg, var(--warning), transparent); }
-
-.maint-summary-card__label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--admin-secondary);
-}
-
-.maint-summary-card__value {
-  font-size: 2.25rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  margin: 6px 0 4px;
-  letter-spacing: -0.03em;
-}
-.maint-summary-card--blue  .maint-summary-card__value { color: var(--primary); }
-.maint-summary-card--teal  .maint-summary-card__value { color: var(--success); }
-.maint-summary-card--amber .maint-summary-card__value { color: var(--warning); }
-
-.maint-summary-card__sub {
-  font-size: 0.72rem;
-  color: var(--admin-secondary);
-}
-
 /* Alert severity pills */
-.maint-alert-pills {
-  display: flex;
-  gap: 5px;
-  margin-top: 8px;
-}
-
-.maint-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 0.67rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-.maint-pill--high { background: var(--error-bg);   color: var(--error);   border: 1px solid var(--error-bg);   }
-.maint-pill--mid  { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-bg); }
-.maint-pill--low  { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bg); }
-
 /* Info banner */
-.maint-info-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0.875rem 1.25rem;
-  padding: 10px 14px;
-  background: var(--primary-bg);
-  border: 1px solid var(--admin-border);
-  border-radius: 8px;
-  font-size: 0.75rem;
-  color: var(--admin-secondary);
-}
-.maint-info-banner__icon {
-  color: var(--primary);
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
 /* Warning banner */
-.maint-warning-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 1rem;
-  padding: 10px 14px;
-  background: var(--error-bg);
-  border: 1px solid var(--error-bg);
-  border-radius: 8px;
-  font-size: 0.75rem;
-  color: var(--error);
-}
-
 /* Table */
-.maint-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.maint-th {
-  padding: 0.6rem 1.25rem;
-  text-align: left;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--admin-secondary);
-  background: var(--admin-bg);
-  border-bottom: 1px solid var(--admin-border);
-}
-
-.maint-tr {
-  border-bottom: 1px solid var(--admin-border);
-  transition: background 0.12s;
-}
-.maint-tr:last-child { border-bottom: none; }
-.maint-tr:hover { background: var(--admin-hover); }
-
-.maint-td {
-  padding: 0.85rem 1.25rem;
-  font-size: 0.82rem;
-  color: var(--admin-secondary);
-}
-.maint-td--primary { color: var(--admin-text); font-weight: 500; }
-.maint-td--muted   { color: var(--admin-secondary); }
-
 /* Badges */
-.maint-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 0.67rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.maint-badge--success { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bg); }
-.maint-badge--error   { background: var(--error-bg);   color: var(--error);   border: 1px solid var(--error-bg);   }
-.maint-badge--info    { background: var(--primary-bg); color: var(--primary); border: 1px solid var(--primary-bg); }
-
 /* Buttons */
-.maint-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: opacity 0.15s, background 0.15s;
-  white-space: nowrap;
-  font-family: inherit;
-}
-.maint-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.maint-btn--ghost {
-  background: transparent;
-  border-color: var(--admin-border);
-  color: var(--admin-secondary);
-}
-.maint-btn--ghost:not(:disabled):hover { background: var(--admin-hover); color: var(--admin-text); }
-
-.maint-btn--accent {
-  background: var(--primary-bg);
-  border-color: var(--admin-border);
-  color: var(--primary);
-}
-.maint-btn--accent:not(:disabled):hover { opacity: 0.8; }
-
-.maint-btn--success {
-  background: var(--success-bg);
-  border-color: var(--success-bg);
-  color: var(--success);
-}
-.maint-btn--success:not(:disabled):hover { opacity: 0.8; }
-
-.maint-btn--danger {
-  background: var(--error-bg);
-  border-color: var(--error-bg);
-  color: var(--error);
-}
-.maint-btn--danger:not(:disabled):hover { opacity: 0.8; }
-
-.maint-btn--sm { padding: 5px 12px; font-size: 0.75rem; }
-
 /* Housekeeping body + purge row */
-.maint-housekeeping-body { padding: 1.25rem; }
-
-.maint-purge-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: nowrap;
-}
-
-.maint-purge-label {
-  font-size: 0.82rem;
-  color: var(--admin-secondary);
-  white-space: nowrap;
-}
-
-.maint-purge-input {
-  width: 76px;
-  padding: 6px 10px;
-  background: var(--admin-input);
-  border: 1px solid var(--admin-border);
-  border-radius: 8px;
-  color: var(--admin-text);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-align: center;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-  flex-shrink: 0;
-}
-.maint-purge-input:focus { border-color: var(--primary); }
-
 /* Toast */
 .maint-toast {
   position: fixed;
@@ -1153,10 +820,1141 @@ body.action-menu-open {
 
 /* Responsive — collapse status grid to 1 col on small screens */
 @media (max-width: 600px) {
-  .maint-status-grid        { grid-template-columns: 1fr; }
-  .maint-status-item        { border-right: none !important; }
-  .maint-status-item:nth-last-child(-n+2) { border-bottom: 1px solid var(--admin-border); }
-  .maint-status-item:last-child           { border-bottom: none; }
-  .maint-summary-grid       { grid-template-columns: 1fr; }
-  .maint-purge-row          { flex-wrap: wrap; }
+}
+/* ── Interactive states ─────────────────────────────────────────
+   The admin panel had a single :focus rule (maint-purge-input);
+   every other control was keyboard-reachable but invisible.
+   ─────────────────────────────────────────────────────────────── */
+.admin-container a:focus-visible,
+.admin-container button:focus-visible,
+.admin-container input:focus-visible,
+.admin-container select:focus-visible,
+.admin-container textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.admin-nav-item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Detection engine tag — matches .engine-tag in analyst.css so an
+   alert's source reads the same on both sides of the app. */
+.admin-container .engine-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--admin-border);
+  background-color: var(--admin-input);
+  color: var(--admin-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   OPERATIONAL POLISH — mirrors the analyst layer so both halves of
+   the application share one surface, badge and control language.
+   ═══════════════════════════════════════════════════════════════ */
+
+.admin-container {
+  --op-edge:   inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --op-shadow: 0 1px 2px rgba(3, 7, 18, 0.35);
+  --op-ease:   160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-page-header h1 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+}
+
+.admin-section-label {
+  font-size: 0.68rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.09em !important;
+  color: var(--admin-secondary) !important;
+}
+
+.admin-card,
+.admin-summary-card,
+.admin-resource-card,
+.admin-status-card,
+.admin-logo {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.017em;
+}
+
+.admin-nav-item {
+  border-radius: 7px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color var(--op-ease), color var(--op-ease);
+}
+
+.admin-nav-item.active { font-weight: 550; }
+
+.admin-logout-btn,
+.admin-container button:not(.admin-nav-item) {
+  transition: background-color var(--op-ease), border-color var(--op-ease),
+              color var(--op-ease);
+}
+
+/* Table rhythm matched to the analyst side. */
+.admin-container table th {
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  color: var(--admin-secondary);
+}
+
+.admin-container tbody tr { transition: background-color var(--op-ease); }
+.admin-container tbody tr:hover { background: rgba(148, 163, 184, 0.04); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN — aligned with the analyst surface, badge and control
+   language so both halves read as one product.
+   ═══════════════════════════════════════════════════════════════ */
+
+.admin-main,
+.admin-content { --op-ease: 160ms cubic-bezier(0.4, 0, 0.2, 1); }
+
+.admin-notice { margin-bottom: var(--space-4); }
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+/* ── Log sources ───────────────────────────────────────────── */
+.src-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Log-source rows carry the engine monogram, the transport recorded on the
+   stored configuration, and a state dot. The dot describes a CONFIGURATION
+   record — nothing here probes a sensor, so a disabled source is neutral
+   grey, never an error colour. */
+.src {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  transition: border-color var(--duration) var(--ease),
+              background-color var(--duration) var(--ease),
+              transform var(--dur-mid) var(--ease-out);
+}
+
+.src:hover {
+  border-color: var(--border-strong);
+  transform: translateX(2px);
+}
+
+.src:hover .ui-enginemark { transform: scale(1.06); }
+
+.src__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.src__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: var(--text-strong);
+}
+
+.src__meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.src__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 650;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+}
+
+.src__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.src--on  { border-color: color-mix(in srgb, var(--feedback-success) 26%, transparent); }
+.src--on  .src__state { color: var(--feedback-success); }
+.src--off .src__state,
+.src--absent .src__state,
+.src--unknown .src__state { color: var(--text-muted-c); }
+
+/* Not-configured rows recede: nothing is stored for them yet. */
+.src--absent { opacity: 0.72; }
+
+/* Long text values (e.g. a category name) in the stat strip. */
+.stat-strip__value--text {
+  font-size: var(--fs-lg);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Sidebar parity with the analyst layout ────────────────── */
+.admin-sidebar { width: 200px; min-width: 200px; }
+
+.admin-logo {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.017em;
+  color: var(--accent);
+}
+
+.admin-content { padding: var(--space-6); max-width: 1400px; }
+
+@media (max-width: 1100px) {
+  .admin-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .admin-content { padding: var(--space-4); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   USER MANAGEMENT
+   Was default admin HTML: a plain underline tab row, a full-width
+   empty search box, a solid header bar and grey pills. Rebuilt on
+   the shared table/panel language so it belongs to the same product
+   as the alert views.
+   ═══════════════════════════════════════════════════════════════ */
+.um-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+/* ── Tabs ───────────────────────────────────────────────────── */
+.um-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.um-tabs::-webkit-scrollbar { display: none; }
+
+/* A moving pill rather than a moving underline: the active tab is a
+   surface, so the control reads as a segmented switch. */
+.um-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary-c);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease),
+              background-color var(--dur-fast) var(--ease);
+}
+
+.um-tab:hover { color: var(--text-strong); background: var(--surface-3); }
+
+.um-tab.is-active {
+  color: var(--text-strong);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm), var(--edge);
+}
+
+.um-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Pending count: informative, not alarming. It was a red circle, which
+   read as an error on a queue that is a normal part of the workflow. */
+.um-tab__count {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.um-tab.is-active .um-tab__count {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-0);
+}
+
+/* ── Search ─────────────────────────────────────────────────── */
+.um-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 240px;
+  max-width: 340px;
+  flex: 1 1 240px;
+  padding: 0 10px;
+  height: 36px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-muted-c);
+  transition: border-color var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease);
+}
+
+.um-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.um-search svg { flex-shrink: 0; }
+
+.um-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  outline: none;
+}
+
+.um-search input::placeholder { color: var(--text-muted-c); }
+
+.um-search__clear {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted-c);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.um-search__clear:hover { color: var(--text-strong); background: var(--surface-3); }
+
+/* ── Table ──────────────────────────────────────────────────── */
+.um-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+  white-space: nowrap;
+}
+
+.um-who { display: flex; align-items: center; gap: var(--space-3); }
+
+.um-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-3);
+  color: var(--text-secondary-c);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.um-who__body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.um-who__name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--fs-md);
+  font-weight: 550;
+  color: var(--text-strong);
+}
+
+.um-who__mail {
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+}
+
+.um-you {
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-3);
+  color: var(--text-muted-c);
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.um-role {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-3);
+  color: var(--text-secondary-c);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Administrators carry more authority, so the role is marked — quietly. */
+.um-role--admin {
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+/* Status uses a dot plus the word, never colour alone. */
+.um-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--text-muted-c);
+}
+
+.um-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.um-status--active    { color: var(--feedback-success); }
+.um-status--pending   { color: var(--feedback-warning); }
+.um-status--suspended { color: var(--feedback-error); }
+.um-status--rejected  { color: var(--text-muted-c); }
+
+.um-actions { width: 1%; white-space: nowrap; text-align: right; }
+
+@media (max-width: 720px) {
+  .um-toolbar { flex-direction: column; align-items: stretch; }
+  .um-search  { max-width: none; }
+}
+
+/* The account table has no wide technical columns, so it does not need the
+   860px minimum the alert tables use to keep IP/port pairs on one line. */
+.um-table { min-width: 560px; }
+
+/* Grid panels size to their own content instead of stretching to the tallest
+   sibling — the severity panel was left with ~200px of empty space below its
+   rows purely to match the log-source list. */
+.admin-grid { align-items: start; }
+
+/* Row-action trigger: invisible until the row or the button itself is
+   engaged, so a column of them does not compete with the data. */
+.alerts-table tbody tr:hover [aria-haspopup="menu"],
+[aria-haspopup="menu"]:hover,
+[aria-haspopup="menu"]:focus-visible,
+[aria-haspopup="menu"][aria-expanded="true"] {
+  color: var(--text-strong);
+  border-color: var(--border-subtle);
+  background: var(--surface-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOG SOURCES
+   This page was the last one still rendering on its own inline-style
+   system: a bare table on the page background, an unbordered search
+   box and a full-bleed submit button. It now uses the same panel,
+   table and search language as the rest of the product.
+   ═══════════════════════════════════════════════════════════════ */
+.lm-panel { margin-bottom: var(--space-4); }
+
+.lm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.lm-table { min-width: 700px; }
+
+.lm-engine { display: flex; align-items: center; gap: var(--space-3); }
+
+.lm-engine__body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.lm-engine__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: var(--text-strong);
+}
+
+/* The stored path or host:port — the substance of the record. */
+.lm-engine__path {
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34ch;
+}
+
+.lm-transport { display: block; font-size: var(--fs-md); color: var(--text-body); }
+
+.lm-format {
+  display: block;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track-wide);
+  color: var(--text-muted-c);
+}
+
+.lm-when { font-size: var(--fs-xs); color: var(--text-muted-c); white-space: nowrap; }
+
+/* The submit button stretched the full panel width because the form grid
+   gave it a whole row. The min-width is dropped on narrow screens, where the
+   two-column grid leaves each cell ~140px and a 190px button escaped the
+   viewport. */
+.lm-form form > button[type="submit"] {
+  justify-self: start;
+  width: auto;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .lm-toolbar { flex-direction: column; align-items: stretch; }
+}
+
+@media (max-width: 640px) {
+  .lm-form form { grid-template-columns: minmax(0, 1fr) !important; }
+  .lm-form form > button[type="submit"] { min-width: 0; width: 100%; }
+}
+
+/* Shared operational primitives (.ops, .ops-empty) live in
+   styles/ops.css so BOTH the admin and analyst routes get them — with
+   route-level code splitting, an analyst page never loads admin.css.
+   The patterns below are maintenance-specific and stay here. */
+
+/* ── 1. Database state: split band + data strip ──────────────── */
+.dbstate {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm), var(--edge);
+  overflow: hidden;
+}
+
+/* Connection state gets its own tinted cell so it reads as a statement
+   rather than another label/value pair. This is REAL backend state —
+   it says nothing about any sensor. */
+.dbstate__conn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.dbstate__conn--on  { background: color-mix(in srgb, var(--feedback-success) 8%, transparent); }
+.dbstate__conn--off { background: color-mix(in srgb, var(--text-muted-c) 8%, transparent); }
+
+.dbstate__dot {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dbstate__conn--on  { color: var(--feedback-success); }
+.dbstate__conn--off { color: var(--text-muted-c); }
+
+.dbstate__connbody { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.dbstate__connlabel {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: currentColor;
+  line-height: 1.1;
+}
+
+.dbstate__connsub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+/* Counts as a strip of cells divided by hairlines — a data strip, not
+   four more cards. */
+.dbstate__strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.dbstate__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-4) var(--space-4);
+  border-right: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.dbstate__cell:last-child { border-right: none; }
+
+.dbstate__cell dt {
+  font-size: var(--fs-2xs);
+  font-weight: 650;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+}
+
+.dbstate__num {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: var(--track-tight);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.dbstate__hint {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  color: var(--text-muted-c);
+}
+
+/* Severity split sits under the strip, inside the same band. */
+.dbstate__sev {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.dbstate__sevlabel {
+  font-size: var(--fs-2xs);
+  font-weight: 650;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+  white-space: nowrap;
+}
+
+.dbstate__sevbar {
+  display: flex;
+  flex: 1 1 220px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.dbstate__seg {
+  height: 100%;
+  transform-origin: left center;
+  animation: grow-x var(--dur-slow) var(--ease-out) both;
+}
+
+.dbstate__seg--high   { background: var(--severity-high); }
+.dbstate__seg--medium { background: var(--severity-medium); }
+.dbstate__seg--low    { background: var(--severity-low); }
+
+.dbstate__sevlegend {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.dbstate__key { display: inline-flex; align-items: center; gap: 5px; }
+
+.dbstate__key::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.dbstate__key--high   { color: var(--severity-high); }
+.dbstate__key--medium { color: var(--severity-medium); }
+.dbstate__key--low    { color: var(--severity-low); }
+
+/* ── 2. Backup: split pane ───────────────────────────────────── */
+.bk {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm), var(--edge);
+  overflow: hidden;
+}
+
+/* The action side is inset and slightly recessed so the list reads as
+   the primary surface and the control as its companion. */
+.bk__action {
+  padding: var(--space-5);
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+}
+
+.bk__lead {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: var(--text-strong);
+}
+
+.bk__text {
+  margin: 0 0 var(--space-4);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-secondary-c);
+}
+
+/* The recoverability note: an inset aside, not a full-width banner. */
+.bk__note {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  color: var(--text-secondary-c);
+}
+
+.bk__note svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+.bk__note code { font-size: 0.75rem; color: var(--text-strong); }
+
+.bk__list {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.bklist { list-style: none; margin: 0; padding: 0; }
+
+.bkrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+
+.bkrow + .bkrow { margin-top: 2px; }
+
+.bkrow:hover {
+  background: var(--surface-2);
+  border-color: var(--border-subtle);
+}
+
+.bkrow__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  color: var(--text-muted-c);
+}
+
+.bkrow__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.bkrow__name {
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bkrow__meta { font-size: var(--fs-xs); color: var(--text-muted-c); }
+
+/* ── 3. Danger zone ──────────────────────────────────────────────
+   Contained, not flooded: a warning-tinted rail and border, neutral
+   interior. The section header carries the only warning-coloured
+   icon, so severity is signalled by placement rather than by making
+   a third of the page red. */
+.ops--danger .ops__head::after {
+  background: color-mix(in srgb, var(--feedback-error) 30%, transparent);
+}
+
+.danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  padding: var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--feedback-error) 28%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--feedback-error) 60%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(100deg,
+      color-mix(in srgb, var(--feedback-error) 6%, transparent),
+      transparent 55%),
+    var(--surface-1);
+}
+
+.danger__body { flex: 1 1 320px; min-width: 0; }
+
+.danger__lead {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: var(--text-strong);
+}
+
+.danger__text {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-secondary-c);
+}
+
+.danger__control {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.danger__field { display: flex; flex-direction: column; gap: 6px; }
+
+.danger__fieldlabel {
+  font-size: var(--fs-2xs);
+  font-weight: 650;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+}
+
+/* Input and unit read as one control rather than a box beside a word. */
+.danger__input {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+  transition: border-color var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease);
+}
+
+.danger__input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.danger__input input {
+  width: 68px;
+  height: 100%;
+  padding: 0 var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.danger__unit {
+  padding: 0 var(--space-3);
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--surface-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+}
+
+/* ── 4. Activity timeline ────────────────────────────────────── */
+.tl {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 34px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm), var(--edge);
+}
+
+/* The spine. Inset from the top and bottom items so it does not run
+   past the first and last markers. */
+.tl::before {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 26px;
+  bottom: 26px;
+  width: 1px;
+  background: var(--border-default);
+}
+
+.tl__item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5) var(--space-3) var(--space-4);
+}
+
+.tl__item + .tl__item { border-top: 1px solid var(--border-subtle); }
+
+.tl__marker {
+  position: absolute;
+  left: -23px;
+  top: 17px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--surface-1);
+  background: var(--text-muted-c);
+}
+
+.tl__item--success .tl__marker { background: var(--feedback-success); }
+.tl__item--failed  .tl__marker { background: var(--feedback-error); }
+
+.tl__body { flex: 1; min-width: 0; }
+
+.tl__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 2px;
+}
+
+.tl__action {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--text-strong);
+}
+
+.tl__status {
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--tl-c, var(--text-muted-c)) 30%, transparent);
+  background: color-mix(in srgb, var(--tl-c, var(--text-muted-c)) 11%, transparent);
+  color: var(--tl-c, var(--text-muted-c));
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.tl__status--success { --tl-c: var(--feedback-success); }
+.tl__status--failed  { --tl-c: var(--feedback-error); }
+
+.tl__detail {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-secondary-c);
+}
+
+.tl__time {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted-c);
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dbstate__seg { animation: none; }
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .dbstate, .bk { grid-template-columns: minmax(0, 1fr); }
+  .dbstate__conn { border-right: none; border-bottom: 1px solid var(--border-subtle); }
+  .bk__action    { border-right: none; border-bottom: 1px solid var(--border-subtle); }
+}
+
+@media (max-width: 720px) {
+  .dbstate__strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dbstate__cell:nth-child(2n) { border-right: none; }
+  .dbstate__cell:nth-child(-n+2) { border-bottom: 1px solid var(--border-subtle); }
+  .danger { flex-direction: column; align-items: stretch; }
+  .danger__control { justify-content: space-between; }
+  .tl__item { flex-wrap: wrap; }
+  .tl__time { width: 100%; padding-left: 0; }
+}
+
+/* ── Admin overview panels ──────────────────────────────────── */
+.admin-rail { display: flex; flex-direction: column; }
+.admin-rail .ops:last-child { margin-bottom: 0; }
+
+/* A plain bordered surface for panel bodies that carry their own
+   internal structure — no card header, since .ops__head already
+   titles the section above it. */
+.srcpanel {
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm), var(--edge);
+}
+
+.srcpanel__note {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-muted-c);
+}
+
+/* ── Category breakdown ──────────────────────────────────────── */
+.catlist {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm), var(--edge);
+}
+
+.catrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px 3ch;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.catrow:hover { background: var(--surface-2); }
+
+.catrow__name {
+  font-size: var(--fs-sm);
+  color: var(--text-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.catrow__track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.catrow__fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: left center;
+  animation: grow-x var(--dur-slow) var(--ease-out) both;
+}
+
+.catrow__count {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catrow__fill { animation: none; }
+}
+
+/* Inline review controls on the pending queue. Approving is the reason an
+   administrator opens that tab, so it is a visible control rather than an
+   item inside the row menu. */
+.um-review {
+  display: inline-flex;
+  gap: var(--space-2);
+  margin-right: var(--space-2);
+  vertical-align: middle;
+}
+
+@media (max-width: 860px) {
+  .um-review { display: flex; margin: 0 0 var(--space-2); }
 }

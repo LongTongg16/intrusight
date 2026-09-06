@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  PageHeader, SectionHeader, Icon, EmptyState, EngineMark,
+} from '../../components/ui';
 import "./admin.css";
 import { styles } from './LogManagement.styles';
 
@@ -37,6 +40,13 @@ const IDS_CONFIGS = {
 };
 
 const IDS_TOOLS = Object.keys(IDS_CONFIGS);
+
+// `status` is a field on the stored configuration record. Nothing in the
+// backend starts, stops or probes an ingestion process, so it is labelled as
+// configuration state ("Enabled"/"Disabled") rather than sensor health.
+const STATUS_LABELS = { active: "Enabled", inactive: "Disabled" };
+const statusLabel = (status) =>
+  STATUS_LABELS[String(status ?? "").toLowerCase()] ?? "Not configured";
 
 const EMPTY_FORM = {
   idsTool:       "",
@@ -90,10 +100,12 @@ const hintBoxStyle = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-function LogManagement({ logs = [], setLogs }) {
+function LogManagement() {
+  // Log sources are owned here rather than lifted into App: this is the only
+  // route that mutates them, and App-level fetching ran on every page load.
+  const [logs, setLogs] = useState([]);
   const [formData, setFormData]         = useState(EMPTY_FORM);
   const [filter, setFilter]             = useState('');
-  const [hoveredRow, setHoveredRow]     = useState(null);
   const [modalLog, setModalLog]         = useState(null);
   const [editMode, setEditMode]         = useState(false);
   const [editData, setEditData]         = useState({});
@@ -179,9 +191,9 @@ useEffect(() => {
 
       setLogs(prev => [...prev, newLog]);
       setFormData(EMPTY_FORM);
-      showToast(`"${newLog.name}" connection added`);
+      showToast(`"${newLog.name}" configuration saved`);
     } catch {
-      showToast('Failed to add connection', 'error');
+      showToast('Failed to save configuration', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -219,7 +231,7 @@ useEffect(() => {
       setLogs(prev => prev.map(l => l.id === updated.id ? updated : l));
       setModalLog(updated);
       setEditData(prev => ({ ...prev, status: updated.status }));
-      showToast(`"${updated.name}" set to ${updated.status}`);
+      showToast(`"${updated.name}" configuration set to ${statusLabel(updated.status)}`);
     } catch {
       showToast('Failed to update status', 'error');
     }
@@ -229,7 +241,9 @@ useEffect(() => {
   const handleDeleteLog = () => {
     setConfirmModal({
       title:        'Remove Log Source',
-      message:      `Remove "${modalLog.name}"? This will stop ingesting data.`,
+      message:      `Remove the stored configuration record for "${modalLog.name}"? `
+                    + `Ingestion processes run outside this application and are not `
+                    + `started or stopped from here.`,
       confirmLabel: 'Remove',
       confirmColor: '#ef4444',
       onConfirm: async () => {
@@ -237,7 +251,7 @@ useEffect(() => {
           await apiFetch(`/api/logs/${modalLog.id}`, { method: 'DELETE' });
           setLogs(prev => prev.filter(l => l.id !== modalLog.id));
           closeModal();
-          showToast(`"${modalLog.name}" removed`, 'error');
+          showToast(`"${modalLog.name}" configuration removed`);
         } catch {
           showToast('Failed to remove log', 'error');
         }
@@ -263,8 +277,8 @@ const filteredLogs = (logs ?? []).filter(log =>
 
       {/* Confirm Modal — higher z-index so it appears above the log detail modal */}
       {confirmModal && (
-        <div style={{ ...styles.modalOverlay, zIndex: 2000 }} onClick={() => setConfirmModal(null)}>
-          <div style={styles.modalBox} onClick={e => e.stopPropagation()}>
+        <div className="ui-backdrop" style={{ ...styles.modalOverlay, zIndex: 2000 }} onClick={() => setConfirmModal(null)}>
+          <div className="ui-pop" style={styles.modalBox} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <div>
                 <p style={styles.modalSubtitle}>Confirm Action</p>
@@ -290,11 +304,11 @@ const filteredLogs = (logs ?? []).filter(log =>
 
       {/* Log Detail / Edit Modal */}
       {modalLog && (
-        <div style={styles.modalOverlay} onClick={closeModal}>
-          <div style={styles.modalBox} onClick={e => e.stopPropagation()}>
+        <div className="ui-backdrop" style={styles.modalOverlay} onClick={closeModal}>
+          <div className="ui-pop" style={styles.modalBox} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <div>
-                <p style={styles.modalSubtitle}>Log Connection</p>
+                <p style={styles.modalSubtitle}>Log source configuration</p>
                 <h2 style={styles.modalTitle}>{modalLog.name}</h2>
               </div>
               <button style={styles.modalClose} onClick={closeModal}>✕</button>
@@ -302,9 +316,9 @@ const filteredLogs = (logs ?? []).filter(log =>
             <div style={styles.modalStatusRow}>
               <span style={styles.statusBadge((modalLog.status ?? 'unknown').toLowerCase())}>
                 <span style={styles.statusDot((modalLog.status ?? 'unknown').toLowerCase())} />
-                {modalLog.status}
+                {statusLabel(modalLog.status)}
               </span>
-              <span style={styles.modalTimestamp}>Last updated: {modalLog.lastUpdated}</span>
+              <span style={styles.modalTimestamp}>Record updated: {modalLog.lastUpdated}</span>
             </div>
             <div style={styles.detailGrid}>
               {editMode ? (
@@ -315,14 +329,14 @@ const filteredLogs = (logs ?? []).filter(log =>
                   </div>
                   <div style={styles.detailItem}>
                     <label style={styles.detailLabel}>Log Type</label>
-                    <select name="type" value={editData.type} onChange={handleEditChange} style={styles.editInput}>
+                    <select aria-label="Log type" name="type" value={editData.type} onChange={handleEditChange} style={styles.editInput}>
                       <option value="File based">File based</option>
                       <option value="Syslog">Syslog</option>
                     </select>
                   </div>
                   <div style={styles.detailItem}>
                     <label style={styles.detailLabel}>Format</label>
-                    <select name="logType" value={editData.logType} onChange={handleEditChange} style={styles.editInput}>
+                    <select name="logType" aria-label="Format" value={editData.logType} onChange={handleEditChange} style={styles.editInput}>
                       <option value="JSON">JSON</option>
                       <option value="TSV">TSV</option>
                       <option value="UDP">UDP</option>
@@ -341,7 +355,7 @@ const filteredLogs = (logs ?? []).filter(log =>
                     <span style={styles.detailValue}>{modalLog.logType}</span>
                   </div>
                   <div style={styles.detailItem}>
-                    <span style={styles.detailLabel}>Connection ID</span>
+                    <span style={styles.detailLabel}>Record ID</span>
                     <span style={styles.detailValue}>#{String(modalLog.id).slice(-4)}</span>
                   </div>
                   {modalLog.filePath && (
@@ -372,8 +386,8 @@ const filteredLogs = (logs ?? []).filter(log =>
               ) : (
                 <>
                   <button style={styles.btnEdit} onClick={() => setEditMode(true)}>Edit</button>
-                    <button style={styles.btnToggle(modalLog.status ?? 'unknown')} onClick={handleToggleStatus}>
-                      {modalLog.status === 'Active' ? 'Deactivate' : 'Activate'}
+                  <button style={styles.btnToggle(modalLog.status ?? 'unknown')} onClick={handleToggleStatus}>
+                    {modalLog.status === 'Active' ? 'Mark disabled' : 'Mark enabled'}
                   </button>
                   <button style={styles.btnDelete} onClick={handleDeleteLog}>Remove</button>
                 </>
@@ -383,79 +397,118 @@ const filteredLogs = (logs ?? []).filter(log =>
         </div>
       )}
 
-      {/* Page Header */}
-      <div style={styles.header}>
-        <h1 style={styles.pageTitle}>Log Management</h1>
-      </div>
+      <PageHeader
+        title="Log Sources"
+        subtitle="Stored configuration records describing where each engine writes its logs. IntruSight does not start, stop or monitor the ingestion processes themselves — those run separately, and changes here do not affect a running ingestor."
+      />
 
-      {/* Log Sources Table */}
-      <div style={styles.tableSection}>
-        <div style={styles.tableHeader}>
-          <input
-            type="text"
-            placeholder="Search logs..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={styles.searchInput}
-          />
-        </div>
-        <table style={styles.logsTable}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Log Name</th>
-              <th style={styles.th}>Log Type</th>
-              <th style={styles.th}>Format</th>
-              <th style={styles.th}>Status</th>
-              <th style={styles.th}>Last Updated</th>
-              <th style={styles.th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLogs.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '2rem' }}>
-                  No log connections found.
-                </td>
-              </tr>
-            ) : (
-              filteredLogs.map((log) => (
-                <tr
-                  key={log.id}
-                  style={hoveredRow === log.id ? styles.trHover : styles.tr}
-                  onMouseEnter={() => setHoveredRow(log.id)}
-                  onMouseLeave={() => setHoveredRow(null)}
-                >
-                  <td style={styles.td}>{log.name}</td>
-                  <td style={styles.td}>{log.type}</td>
-                  <td style={styles.td}>{log.logType}</td>
-                  <td style={styles.td}>
-                    <span style={styles.statusBadge((log.status ?? 'unknown').toLowerCase())}>
-                      <span style={styles.statusDot((log.status ?? 'unknown').toLowerCase())} />
-                      {log.status ?? 'unknown'}
-                    </span>
-                  </td>
-                  <td style={styles.td}>{log.lastUpdated}</td>
-                  <td style={styles.td}>
-                    <button style={styles.actionBtn} onClick={() => openModal(log)} title="Manage connection">
-                      ···
-                    </button>
-                  </td>
-                </tr>
-              ))
+      {/* Log source configuration records */}
+      <section className="ui-panel lm-panel">
+        <div className="lm-toolbar">
+          <div className="um-search">
+            <Icon.search />
+            <input
+              type="text"
+              placeholder="Search log sources"
+              aria-label="Search log sources"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            {filter && (
+              <button
+                type="button"
+                className="um-search__clear"
+                aria-label="Clear search"
+                onClick={() => setFilter('')}
+              >
+                <Icon.close />
+              </button>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+          <span className="um-count">
+            {filteredLogs.length} of {logs.length} stored
+          </span>
+        </div>
+
+        {filteredLogs.length === 0 ? (
+          <EmptyState
+            icon="plug"
+            title={filter ? 'No log sources match that search' : 'No log source configurations stored'}
+          >
+            {filter
+              ? 'Try a different engine name or transport.'
+              : 'Add a record below describing where an engine writes its logs. Storing it here does not start an ingestor.'}
+          </EmptyState>
+        ) : (
+          <div className="table-scroll">
+            <table className="alerts-table lm-table">
+              <thead>
+                <tr>
+                  <th>Engine</th>
+                  <th>Transport</th>
+                  <th>Configuration</th>
+                  <th>Record updated</th>
+                  <th><span className="visually-hidden">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td>
+                      <div className="lm-engine">
+                        <EngineMark engine={log.name} />
+                        <span className="lm-engine__body">
+                          <span className="lm-engine__name">{log.name}</span>
+                          <span className="lm-engine__path ui-mono">
+                            {log.filePath || (log.syslogHost ? `${log.syslogHost}:${log.syslogPort}` : '—')}
+                          </span>
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="lm-transport">{log.type}</span>
+                      <span className="lm-format ui-mono">{log.logType}</span>
+                    </td>
+                    <td>
+                      <span className={`um-status um-status--${(log.status ?? '').toLowerCase() === 'active' ? 'active' : 'rejected'}`}>
+                        <span className="um-status__dot" aria-hidden="true" />
+                        {statusLabel(log.status)}
+                      </span>
+                    </td>
+                    <td className="ui-mono lm-when">{log.lastUpdated}</td>
+                    <td className="um-actions">
+                      <button
+                        type="button"
+                        style={styles.actionBtn}
+                        onClick={() => openModal(log)}
+                        aria-haspopup="dialog"
+                        aria-label={`Manage ${log.name} configuration`}
+                      >
+                        <Icon.dots />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {/* Add Connection Form */}
-      <div style={styles.formSection}>
-        <h3 style={styles.formTitle}>Add New Connection</h3>
+      <section className="ui-panel lm-form">
+        <div className="ui-panel__body">
+          <SectionHeader
+            title="Add log source configuration"
+            hint="Records where an engine writes its output. Saving does not start or restart an ingestor."
+          />
         <form style={{ ...styles.form, gap: '16px' }} onSubmit={handleSubmit}>
 
           {/* IDS Tool */}
           <div>
             <label style={fieldLabelStyle}>IDS Tool</label>
             <select
+              aria-label="Detection engine"
               name="idsTool"
               value={formData.idsTool}
               onChange={handleToolChange}
@@ -492,6 +545,7 @@ const filteredLogs = (logs ?? []).filter(log =>
                   />
                 ) : (
                   <select
+                    aria-label="Format"
                     name="parsingOption"
                     value={formData.parsingOption}
                     onChange={handleInputChange}
@@ -552,8 +606,8 @@ const filteredLogs = (logs ?? []).filter(log =>
               {/* Hint box */}
               <div style={{ ...hintBoxStyle, gridColumn: '1 / -1' }}>
                 {selectedConfig.extraField === 'filepath'
-                  ? `📄 ${formData.idsTool} uses file-based ingestion. Provide the full path to the log file on your server.`
-                  : `📡 ${formData.idsTool} uses syslog ingestion. Provide the host and port your IDS is forwarding logs to.`
+                  ? `${formData.idsTool} is configured as a file-based source. Record the full path to the log file so the ingestor can be pointed at it.`
+                  : `${formData.idsTool} is configured as a syslog source. Record the host and port the ingestor should listen on.`
                 }
               </div>
             </>
@@ -567,10 +621,11 @@ const filteredLogs = (logs ?? []).filter(log =>
             }}
             disabled={!selectedConfig || isSubmitting}
           >
-            {isSubmitting ? 'Adding…' : 'Add Connection'}
+            {isSubmitting ? 'Saving…' : 'Save configuration'}
           </button>
         </form>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

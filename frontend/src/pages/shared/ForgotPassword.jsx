@@ -1,102 +1,82 @@
-import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
-import "./ForgotPassword.css";
+import { Link } from "react-router-dom";
+import PublicNavbar from "../../components/PublicNavbar";
+import "./auth.css";
 
-const ForgotPassword = () => {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSubmitted(true);
-  };
-
+/**
+ * Self-service password reset does not exist in this project — there is no
+ * mail transport and no reset-token endpoint. This page therefore explains
+ * the real recovery path instead of collecting an address into a form that
+ * never sends anything.
+ *
+ * The only reset path is `POST /api/users/{user_id}/reset-password`, which is
+ * administrator-only and is NOT surfaced anywhere in the admin interface, so
+ * an operator has to call it directly. The wording below says exactly that
+ * rather than pointing users at a User Management button that does not exist.
+ */
+function ForgotPassword() {
   return (
-    <div className="auth-page">
-      {/* Navbar - fixed with CSS override */}
-      <nav className="navbar">
-        <div className="nav-logo">Intrusion Detection</div>  
-        <ul className="nav-menu">
-          <li>
-            <NavLink 
-              to="/" 
-              className={({ isActive }) => isActive ? "nav-active" : "nav-link"}
-            >
-              Home
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/about" 
-              className={({ isActive }) => isActive ? "nav-active" : "nav-link"}
-            >
-              About
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/features" 
-              className={({ isActive }) => isActive ? "nav-active" : "nav-link"}
-            >
-              Features
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/demo" 
-              className={({ isActive }) => isActive ? "nav-active" : "nav-link"}
-            >
-              Demo
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/login" 
-              className={({ isActive }) => isActive ? "nav-active" : "nav-link"}
-            >
-              Login
-            </NavLink>
-          </li>
-        </ul>
-      </nav>
+    <div className="auth">
+      <PublicNavbar />
 
-      {/* Your content - unchanged */}
-      <div className="main-content">
-        <div className="auth-card">
-          <h1>Forgot your password?</h1>
-          <p className="subtitle">
-            Self-service password reset is not implemented. Contact an administrator
-            to reset your password.
-          </p>
-
-          <form onSubmit={handleSubmit} className="auth-form">
-            <label>EMAIL</label>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-
-            <button type="submit">
-              SHOW RESET INSTRUCTIONS
-            </button>
-          </form>
-          {submitted && (
-            <p className="subtitle" role="status">
-              Ask an IntruSight administrator to use the account-management reset
-              workflow. No email was sent.
+      <main className="auth__main">
+        <div className="auth__card">
+          <header className="auth__head">
+            <h1 className="auth__title">Password reset</h1>
+            <p className="auth__sub">
+              IntruSight has no self-service reset: there is no mail delivery
+              and no reset-token flow. Passwords are reset by an administrator.
             </p>
-          )}
-        </div>
-      </div>
+          </header>
 
-      <footer className="footer">
-        2026 Intrusion Detection Dashboard
+          <div className="auth__panel">
+            <ol className="auth__steps">
+              <li>
+                <span className="auth__step-num">1</span>
+                <div>
+                  <p className="auth__step-title">Contact an administrator</p>
+                  <p className="auth__step-text">
+                    Ask someone with an administrator account on this deployment
+                    to reset your password.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span className="auth__step-num">2</span>
+                <div>
+                  <p className="auth__step-title">They set a temporary password</p>
+                  <p className="auth__step-text">
+                    There is no reset button in the admin interface. An
+                    administrator has to call the reset endpoint directly
+                    (<code className="auth__code">POST /api/users/&#123;id&#125;/reset-password</code>)
+                    with an administrator token.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span className="auth__step-num">3</span>
+                <div>
+                  <p className="auth__step-title">You choose a new one</p>
+                  <p className="auth__step-text">
+                    The reset flags the account, so signing in with the temporary
+                    password takes you straight to a change-password step before
+                    anything else loads.
+                  </p>
+                </div>
+              </li>
+            </ol>
+
+            <p className="auth__foot">
+              <Link to="/login" className="auth__link">Back to sign in</Link>
+            </p>
+          </div>
+        </div>
+      </main>
+
+      <footer className="auth__footer">
+        IntruSight — educational network intrusion alert management platform.
       </footer>
     </div>
   );
-};
+}
 
 export default ForgotPassword;

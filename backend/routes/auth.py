@@ -87,7 +87,6 @@ async def login(login_data: LoginIn):
         full_name=user["full_name"],
         role=user["role"],
         status=status,
-        telegram_id=user.get("telegram_id"),
     )
     return LoginOut(
         token=token,
@@ -118,7 +117,6 @@ async def get_profile(current_user: dict = Security(get_current_user)):
         full_name=user["full_name"],
         role=user["role"],
         status=user.get("status", "pending"),
-        telegram_id=user.get("telegram_id"),
     )
 
 
@@ -132,11 +130,7 @@ async def edit_profile(
         raise HTTPException(status_code=401, detail="Invalid token")
 
     try:
-        user = await update_user_profile(
-            user_id,
-            profile_data.full_name,
-            profile_data.telegram_id or "",
-        )
+        user = await update_user_profile(user_id, profile_data.full_name)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -148,7 +142,6 @@ async def edit_profile(
         full_name=user["full_name"],
         role=user["role"],
         status=user.get("status", "pending"),
-        telegram_id=user.get("telegram_id"),
     )
 
 

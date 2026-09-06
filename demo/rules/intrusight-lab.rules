@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# IntruSight demonstration rules — LAB USE ONLY
+#
+# These are rules written for this project's demonstration lab. They are NOT
+# production detection content and are NOT a maintained ruleset. Their purpose
+# is to show that Snort detection is rule-driven and operator-configurable:
+# each one fires on a marker that only exists inside the lab network.
+#
+# A real deployment would run a maintained ruleset (Snort community rules,
+# Talos, or Emerging Threats) instead of these.
+#
+# Local SID range 1000000-1999999 is reserved by convention for local rules.
+# Load with:  snort -c snort.lua -R demo/rules/intrusight-lab.rules
+# ─────────────────────────────────────────────────────────────────────────────
+
+# 1000001 — sequential connection attempts from one host to many ports.
+# Demonstrates a stateful threshold rather than a single-packet match.
+alert tcp $HOME_NET any -> $HOME_NET any (
+    msg:"[INTRUSIGHT-LAB] Sequential TCP connection attempts from single host";
+    flow:stateless; flags:S;
+    detection_filter:track by_src, count 15, seconds 30;
+    classtype:attempted-recon; priority:2;
+    sid:1000001; rev:3;
+)
+
+# 1000004 — the lab marker path. Nothing outside this lab serves it, so a hit
+# is unambiguous and reproducible for a demonstration.
+alert tcp $HOME_NET any -> $HOME_NET 8080 (
+    msg:"[INTRUSIGHT-LAB] Marker path /intrusight-lab-marker requested";
+    flow:to_server,established;
+    http_uri; content:"/intrusight-lab-marker", nocase;
+    classtype:web-application-activity; priority:2;
+    sid:1000004; rev:2;
+)
+
+# 1000005 — repeated 401 responses from the lab service.
+# Demonstrates rate-based logic on the response side.
+alert tcp $HOME_NET 8080 -> $HOME_NET any (
+    msg:"[INTRUSIGHT-LAB] Repeated authentication failures to lab service";
+    flow:to_client,established;
+    http_stat_code; content:"401";
+    detection_filter:track by_dst, count 5, seconds 60;
+    classtype:attempted-admin; priority:1;
+    sid:1000005; rev:1;
+)
+
+# 1000006 — a credential-looking parameter sent without TLS to the lab service.
+# Demonstrates a policy rule rather than an attack signature.
+alert tcp $HOME_NET any -> $HOME_NET 8080 (
+    msg:"[INTRUSIGHT-LAB] Cleartext credential parameter in lab HTTP request";
+    flow:to_server,established;
+    http_client_body; content:"password=", nocase;
+    classtype:policy-violation; priority:3;
+    sid:1000006; rev:1;
+)

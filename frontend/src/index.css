@@ -2,8 +2,19 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
+
+/* font-family lives on :root, not on `*`.
+   A universal selector applies the declaration DIRECTLY to every element, so
+   it beats inheritance at any specificity — the same failure the universal
+   `color` rule used to cause. With it in place, `.ui-mono { font-family: mono }`
+   styled the container but every <span> inside snapped back to Inter.
+   Setting it once at the root lets display and mono inherit normally. */
+:root {
+  font-family: var(--font-sans);
+}
+
+body { font-family: var(--font-sans); }
 
 /* Theme CSS Variables */
 :root {
@@ -130,23 +141,29 @@ body {
   transition: var(--transition);
 }
 
-/* Base element styles */
+/* Base element styles.
+   `color` is intentionally NOT set here. It used to be applied through this
+   universal selector, but a directly-applied declaration beats an inherited
+   one at any specificity, so no component could colour its own subtree — which
+   is why this codebase accumulated so many inline style objects. `body` sets
+   the base colour and it now inherits normally.
+   `border-color` stays: it only takes effect where a border-style is declared,
+   so it acts as a default rather than an override. */
 *, *::before, *::after {
-  color: var(--text-primary);
   border-color: var(--border-primary);
 }
 
 input, select, textarea, button {
   background: var(--bg-input);
   color: var(--text-primary);
-  border: 1px solid var(--border-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius);
   transition: var(--transition);
   font-family: inherit;
 }
 
 input::placeholder {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 button {
@@ -157,8 +174,16 @@ button:hover {
   background: var(--bg-hover);
 }
 
-.card, [class*='card'] {
-  background: var(--bg-card) !important;
+/* Card surface.
+   This was previously `.card, [class*='card']` with `background !important`.
+   The substring match also caught inner utility classes — card-label,
+   card-icon, card-value, summary-cards, maint-card__header,
+   maint-summary-card__value — giving each of them a card background, border
+   and radius of its own, which is why stat labels rendered inside stray
+   pills. Every real card class already declares its own background, so the
+   match is narrowed to the generic `.card` and the !important is dropped. */
+.card {
+  background: var(--bg-card);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   transition: var(--transition);
@@ -170,3 +195,136 @@ button:hover {
   border-color: rgba(16,185,129,0.3) !important;
 }
 
+
+/* ── Accessibility baseline ─────────────────────────────────────
+   Applies app-wide: a visible keyboard focus ring on every operable
+   control, and an opt-out for users who ask for reduced motion.
+   ─────────────────────────────────────────────────────────────── */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* Keep the ring off pointer interactions that already have hover feedback. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus:not(:focus-visible) {
+  outline: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   TYPOGRAPHY — three roles with distinct jobs
+   ═══════════════════════════════════════════════════════════════ */
+h1, h2, h3, h4, .u-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  line-height: var(--lh-tight);
+}
+
+h1 { font-size: var(--fs-3xl); letter-spacing: var(--track-tight); }
+
+/* Technical values: IPs, ports, IDs, timestamps, signatures.
+   `font-variant-numeric` keeps columns of digits aligned. */
+.u-mono, .ui-mono, code, kbd, samp, pre {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 1;
+  letter-spacing: -0.01em;
+}
+
+/* Metrics read as measurements, not headings: display face, tight tracking,
+   tabular figures so a value changing width does not shift the layout. */
+.u-metric {
+  font-family: var(--font-display);
+  font-size: var(--fs-metric);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: var(--track-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small uppercase labels. Uppercase needs extra tracking to stay legible. */
+.u-label {
+  font-size: var(--fs-2xs);
+  font-weight: 650;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-secondary-c);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOTION — four named entrances, nothing decorative loops.
+   Every one is disabled by the prefers-reduced-motion block above,
+   which uses !important and therefore wins. Do not re-enable
+   locally.
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Modals and dropdowns: scale from slightly small so they read as
+   emerging from the trigger rather than being pasted on. */
+@keyframes pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Proportional bars grow from their origin on first paint. */
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Skeleton shimmer — the one repeating animation, and it only ever runs
+   while real data is in flight. */
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+.u-rise { animation: rise var(--dur-mid) var(--ease-out) both; }
+.u-fade { animation: fade var(--dur-mid) var(--ease) both; }
+
+/* Stagger: sections settle in sequence so the eye is led down the page.
+   Capped at 6 steps — beyond that the last item feels late. */
+.u-stagger > *           { animation: rise var(--dur-mid) var(--ease-out) both; }
+.u-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.u-stagger > *:nth-child(2) { animation-delay: 45ms; }
+.u-stagger > *:nth-child(3) { animation-delay: 90ms; }
+.u-stagger > *:nth-child(4) { animation-delay: 135ms; }
+.u-stagger > *:nth-child(5) { animation-delay: 180ms; }
+.u-stagger > *:nth-child(n+6) { animation-delay: 210ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .u-rise, .u-fade, .u-stagger > * { animation: none !important; }
+}

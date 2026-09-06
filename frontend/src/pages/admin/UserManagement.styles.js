@@ -110,19 +110,24 @@ th: {
       fontSize: "0.75rem",
       fontWeight: "600",
       backgroundColor: isAdmin ? "rgba(59, 130, 246, 0.1)" : "rgba(139, 92, 246, 0.1)",
-      color: isAdmin ? "#3b82f6" : "#8b5cf6",
+      color: isAdmin ? "var(--accent)" : "var(--text-secondary-c)",
     };
   },
 
   // Dropdown Menu
   menuTrigger: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "28px",
+    height: "28px",
     background: "none",
-    border: "none",
-    color: "var(--text-muted)",
+    border: "1px solid transparent",
+    color: "var(--text-muted-c)",
     cursor: "pointer",
-    fontSize: "1.2rem",
-    padding: "4px 8px",
-    borderRadius: "4px",
+    padding: 0,
+    borderRadius: "var(--radius-sm)",
+    transition: "var(--transition-base)",
   },
   dropdown: {
     position: "absolute",

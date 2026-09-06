@@ -2,7 +2,7 @@ bcrypt==5.0.0
 email-validator==2.3.0
 fastapi==0.133.1
 geoip2==5.2.0
-httpx==0.28.1
+httpx==0.28.1          # required by fastapi.testclient; no longer imported directly
 motor==3.7.1
 pydantic==2.12.5
 pymongo==4.16.0

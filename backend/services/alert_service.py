@@ -1,11 +1,18 @@
 import os
 
-from dotenv import load_dotenv
 from pymongo import MongoClient
 
-load_dotenv()
+from config import load_backend_env
 
-MONGO_URI = os.getenv("MONGO_URI") or os.getenv("MONGODB_URL")
+load_backend_env()
+
+# MONGODB_URL is the single canonical connection variable for the whole backend.
+# This synchronous alert client and the async Motor client in database.py must
+# never address different deployments, so there is deliberately no per-service
+# override here. Unlike database.py this module tolerates an unset value so that
+# get_collection() can return None and callers answer 503 rather than failing at
+# import time.
+MONGODB_URL = os.getenv("MONGODB_URL")
 DB_NAME = os.getenv("DATABASE_NAME", "siemless_db")
 COLLECTION_NAME = "alerts"
 
@@ -14,11 +21,11 @@ ALLOWED_STATUS = {"new", "investigating", "resolved"}
 
 _client = (
     MongoClient(
-        MONGO_URI,
+        MONGODB_URL,
         serverSelectionTimeoutMS=2000,
         connectTimeoutMS=2000,
     )
-    if MONGO_URI
+    if MONGODB_URL
     else None
 )
 

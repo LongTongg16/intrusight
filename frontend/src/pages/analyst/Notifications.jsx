@@ -1,18 +1,58 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import './analyst.css';
+import {
+  PageHeader, Button, Notice, Icon, SeverityBadge, StatusBadge, EngineBadge,
+  FilterBar, SelectFilter, EmptyState, ErrorState, LoadingRows,
+  sourceOf, destOf,
+} from "../../components/ui";
+import "./analyst.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+
+/**
+ * Triage queue.
+ *
+ * There is no notification service behind this page: it is a view over
+ * alerts that have not yet been resolved. Two things were previously
+ * misrepresented here and are now stated plainly:
+ *
+ *  1. The action labelled "mark as read" PATCHed the alert to
+ *     `investigating` — a triage state change, not a read receipt. The
+ *     control now says what it does.
+ *  2. Failures were swallowed and the row was marked read locally
+ *     anyway, so the UI claimed a change the server never accepted.
+ *     Failures now surface and the row is left untouched.
+ *
+ * The "Channel" filter offered a single value (Dashboard) because no
+ * delivery channels exist, so it has been removed.
+ */
+
+const SEVERITY_OPTIONS = [
+  { value: "ALL", label: "All severities" },
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Low" },
+];
+
+/** Severity ordering used to sort the queue, matching the page's promise. */
+const SEV_RANK = { high: 0, medium: 1, low: 2 };
+
+const STATUS_OPTIONS = [
+  { value: "OPEN", label: "Needs triage" },
+  { value: "resolved", label: "Resolved" },
+  { value: "ALL", label: "All" },
+];
 
 function Notifications() {
   const navigate = useNavigate();
 
   const [severity, setSeverity] = useState("ALL");
-  const [status, setStatus] = useState("UNREAD");
-  const [channel, setChannel] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("OPEN");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -20,28 +60,14 @@ function Notifications() {
       setError("");
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/alerts`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-
-      const mapped = (data.items || []).map((alert) => ({
-        id:      alert.id,
-        sev:     severityMap(alert.severity_label),
-        title:   alert.signature || "Unknown Alert",
-        ip:      alert.src_ip || "-",
-        when:    alert.timestamp
-                   ? new Date(alert.timestamp).toLocaleString([], { dateStyle: "short", timeStyle: "short" })
-                   : "-",
-        channel: "DASHBOARD",
-        read:    alert.status === "resolved",
-        failed:  false,
-        status:  alert.status,
-      }));
-
-      setItems(mapped);
+      setItems(data.items ?? []);
     } catch {
-      setError("Failed to load notifications.");
+      setError("Could not reach the API. No alerts loaded.");
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -49,220 +75,152 @@ function Notifications() {
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
-  const acknowledge = async (id) => {
+  /** Moves an alert into `investigating`. Only updates the row on success. */
+  const startInvestigating = async (id) => {
+    setBusyId(id);
+    setActionError("");
     try {
       const token = localStorage.getItem("token");
-      await fetch(`${API_BASE}/api/alerts/${id}/status`, {
+      const res = await fetch(`${API_BASE}/api/alerts/${id}/status`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ status: "investigating" }),
       });
-      setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setItems((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: "investigating" } : a))
+      );
     } catch {
-      // silently fail — UI still marks as read locally
-      setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      setActionError(
+        "Could not update that alert. Its status is unchanged — check the API and try again."
+      );
+    } finally {
+      setBusyId(null);
     }
   };
 
-  const markAllRead = async () => {
-    const token = localStorage.getItem("token");
-    const unread = items.filter(n => !n.read);
-    await Promise.allSettled(
-      unread.map(n =>
-        fetch(`${API_BASE}/api/alerts/${n.id}/status`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: "investigating" }),
-        })
-      )
-    );
-    setItems(prev => prev.map(n => ({ ...n, read: true })));
+  const filtered = useMemo(() => {
+    return items
+      .filter((a) => {
+        const sev = (a.severity_label || "").toLowerCase();
+        const st = (a.status || "new").toLowerCase();
+        const sevMatch = severity === "ALL" || sev === severity;
+        const stMatch =
+          statusFilter === "ALL" ||
+          (statusFilter === "OPEN" ? st !== "resolved" : st === statusFilter);
+        return sevMatch && stMatch;
+      })
+      // The header promises "most severe first"; sort so it is actually true.
+      .sort((a, b) => {
+        const s = (SEV_RANK[(a.severity_label || "").toLowerCase()] ?? 9)
+                - (SEV_RANK[(b.severity_label || "").toLowerCase()] ?? 9);
+        if (s !== 0) return s;
+        return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+      });
+  }, [items, severity, statusFilter]);
+
+  const openCount = useMemo(
+    () => items.filter((a) => (a.status || "new").toLowerCase() !== "resolved").length,
+    [items]
+  );
+
+  const fmtWhen = (ts) => {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return ts;
+    return d.toLocaleString([], {
+      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    });
   };
 
-  const filtered = useMemo(() => {
-    return items.filter((n) => {
-      const sevMatch    = severity === "ALL" || n.sev === severity;
-      const statusMatch = status   === "ALL" || (status === "UNREAD" ? !n.read : n.read);
-      const chanMatch   = channel  === "ALL" || n.channel === channel;
-      return sevMatch && statusMatch && chanMatch;
-    });
-  }, [items, severity, status, channel]);
-
-  const unreadCount = items.filter(n => !n.read).length;
-
   return (
-    <main className="dashboard-main">
-      {/* Header */}
-      <div className="dashboard-status-bar">
-        <div>
-          <h1 className="page-title">Notifications</h1>
-          <div className="text-sm text-muted">Unread: {unreadCount}</div>
-        </div>
-        <button className="export-btn" onClick={markAllRead}>
-          Mark all as read
-        </button>
+    <>
+      <PageHeader
+        title="Triage queue"
+        subtitle="Alerts that have not been resolved yet, most severe first. This is a view over stored alerts — IntruSight does not deliver notifications by email, chat or any other channel."
+        actions={
+          <Button onClick={fetchAlerts} loading={loading}>
+            <Icon.refresh /> Refresh
+          </Button>
+        }
+      />
+
+      {actionError && <Notice tone="error" className="nt-notice">{actionError}</Notice>}
+
+      <FilterBar count={`${filtered.length} shown · ${openCount} open`}>
+        <SelectFilter label="Severity" value={severity} onChange={setSeverity} options={SEVERITY_OPTIONS} />
+        <SelectFilter label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
+      </FilterBar>
+
+      <div className="table-container">
+        {loading ? (
+          <LoadingRows rows={5} label="Loading triage queue" />
+        ) : error ? (
+          <ErrorState onRetry={fetchAlerts}>{error}</ErrorState>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon="inbox"
+            title={items.length ? "Nothing matches these filters" : "Queue is clear"}
+          >
+            {items.length
+              ? "Try widening the severity or status filter."
+              : "No alerts are waiting for triage. New alerts appear here as engines report them."}
+          </EmptyState>
+        ) : (
+          <ul className="triage-list">
+            {filtered.map((a) => {
+              const status = (a.status || "new").toLowerCase();
+              return (
+                <li key={a.id} className="triage-item">
+                  <div className="triage-item__lead">
+                    <SeverityBadge severity={a.severity_label} />
+                  </div>
+
+                  <div className="triage-item__body">
+                    <p className="triage-item__title">{a.signature || "Unnamed event"}</p>
+                    <p className="triage-item__meta">
+                      <span className="ui-mono">{sourceOf(a) || "—"}</span>
+                      <span aria-hidden="true">→</span>
+                      <span className="ui-mono">{destOf(a) || "—"}</span>
+                      <span className="triage-item__dot" aria-hidden="true" />
+                      <span>{fmtWhen(a.timestamp)}</span>
+                    </p>
+                  </div>
+
+                  <div className="triage-item__tags">
+                    <EngineBadge engine={a.source_nids} />
+                    <StatusBadge status={status} />
+                  </div>
+
+                  <div className="triage-item__actions">
+                    {status === "new" && (
+                      <Button
+                        size="sm"
+                        onClick={() => startInvestigating(a.id)}
+                        disabled={busyId === a.id}
+                      >
+                        {busyId === a.id ? "Saving…" : "Start investigating"}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => navigate(`/alert/${a.id}`, { state: { alert: a } })}
+                    >
+                      <Icon.eye /> Open
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
-
-      {/* Filter bar */}
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="filters" style={{ marginBottom: 0 }}>
-          <span className="nav-section-title" style={{ alignSelf: 'center' }}>Filters</span>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Severity</span>
-            <select className="time-filter" value={severity} onChange={(e) => setSeverity(e.target.value)}>
-              <option value="ALL">All</option>
-              <option value="HIGH">High</option>
-              <option value="MED">Medium</option>
-              <option value="LOW">Low</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Status</span>
-            <select className="time-filter" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="UNREAD">Unread</option>
-              <option value="READ">Read</option>
-              <option value="ALL">All</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Channel</span>
-            <select className="time-filter" value={channel} onChange={(e) => setChannel(e.target.value)}>
-              <option value="ALL">All</option>
-              <option value="DASHBOARD">Dashboard</option>
-            </select>
-          </div>
-
-          <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            {filtered.length} notification{filtered.length !== 1 ? 's' : ''}
-          </div>
-        </div>
-      </div>
-
-      {/* States */}
-      {loading && <div className="loading-text">Loading notifications…</div>}
-      {error   && <div className="error-banner">⚠️ {error}</div>}
-
-      {/* Notification cards */}
-      {!loading && filtered.length === 0 ? (
-        <div className="empty-text">No notifications match the current filters.</div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
-          {filtered.map((n) => (
-            <div
-              key={n.id}
-              className="card"
-              style={{
-                opacity: n.read ? 0.55 : 1,
-                borderLeft: `3px solid ${sevColor(n.sev)}`,
-                padding: '0.75rem 1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.4rem',
-              }}
-            >
-              {/* Top row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{
-                  display: 'inline-block',
-                  padding: '0.15rem 0.55rem',
-                  borderRadius: '999px',
-                  fontSize: '0.68rem',
-                  fontWeight: 800,
-                  letterSpacing: '0.05em',
-                  backgroundColor: sevBg(n.sev),
-                  color: sevColor(n.sev),
-                  border: `1px solid ${sevColor(n.sev)}`,
-                  flexShrink: 0,
-                }}>
-                  {n.sev === 'MED' ? 'MEDIUM' : n.sev}
-                </span>
-
-                {n.failed && (
-                  <span style={{ color: 'var(--color-yellow)', fontSize: '0.72rem', fontWeight: 700 }}>
-                    ⚠ Delivery failed
-                  </span>
-                )}
-
-                <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                  {n.when}
-                </span>
-              </div>
-
-              {/* Title */}
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.3 }}>
-                {n.title}
-              </div>
-
-              {/* Meta */}
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                IP: <span className="src-ip mono" style={{ fontSize: '0.75rem' }}>{n.ip}</span>
-                <span style={{ margin: '0 0.3rem' }}>•</span>
-                {n.channel}
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                {!n.read ? (
-                  <button
-                    className="view-btn"
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-                    onClick={() => acknowledge(n.id)}
-                  >
-                    ✓ Acknowledge
-                  </button>
-                ) : (
-                  <button
-                    className="view-btn"
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-                    onClick={() => navigate(`/alert/${n.id}`)}
-                  >
-                    View
-                  </button>
-                )}
-                <button
-                  className="export-btn"
-                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-                  onClick={() => navigate("/alerts")}
-                >
-                  View Alert →
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </main>
+    </>
   );
-}
-
-/* Severity helpers */
-function severityMap(label) {
-  if (!label) return "LOW";
-  const l = label.toLowerCase();
-  if (l === "high")   return "HIGH";
-  if (l === "medium") return "MED";
-  return "LOW";
-}
-
-function sevColor(sev) {
-  if (sev === 'HIGH') return '#ef4444';
-  if (sev === 'MED')  return '#f59e0b';
-  return '#22c55e';
-}
-
-function sevBg(sev) {
-  if (sev === 'HIGH') return 'rgba(239,68,68,0.12)';
-  if (sev === 'MED')  return 'rgba(245,158,11,0.12)';
-  return 'rgba(34,197,94,0.12)';
 }
 
 export default Notifications;

@@ -17,13 +17,23 @@ L.Icon.Default.mergeOptions({
 });
 
 const SEV_COLOR = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+
+// A truthiness check on latitude/longitude discards 0, which is a valid
+// coordinate (the equator and the prime meridian), so plot-ability is decided
+// on explicit presence plus finiteness instead. `Number(null)` and `Number('')`
+// are both 0, so those are rejected before the finiteness test.
+const isCoord = (value) =>
+  value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+
+const hasCoords = (location) =>
+  location != null && isCoord(location.latitude) && isCoord(location.longitude);
 const SEV_RADIUS = { high: 10, medium: 7, low: 5 };
 
 const MapFocuser = ({ focusAlert, markerRefs }) => {
   const map = useMap();
 
   useEffect(() => {
-    if (!focusAlert?.dest_location?.latitude) return;
+    if (!hasCoords(focusAlert?.dest_location)) return;
     const { latitude, longitude } = focusAlert.dest_location;
     map.flyTo([latitude, longitude], 8, { duration: 1.2 });
 
@@ -63,7 +73,7 @@ const ThreatMap = () => {
 
       setStats({
         total: items.length,
-        mapped: items.filter(a => a.dest_location?.latitude && a.dest_location?.longitude).length,
+        mapped: items.filter(a => hasCoords(a.dest_location)).length,
         high: items.filter(a => a.severity_label === 'high').length,
         medium: items.filter(a => a.severity_label === 'medium').length,
         low: items.filter(a => a.severity_label === 'low').length,
@@ -73,7 +83,7 @@ const ThreatMap = () => {
 
       if (highlightId) {
         const target = items.find(a => a.id === highlightId);
-        if (target?.dest_location?.latitude) {
+        if (hasCoords(target?.dest_location)) {
           setFocusAlert(target);
         }
       }
@@ -89,7 +99,7 @@ const ThreatMap = () => {
   }, [fetchAlerts]);
 
   const mappableAlerts = alerts.filter(a => {
-    if (!a.dest_location?.latitude || !a.dest_location?.longitude) return false;
+    if (!hasCoords(a.dest_location)) return false;
     if (filter !== 'all' && a.severity_label !== filter) return false;
     return true;
   });
@@ -97,10 +107,12 @@ const ThreatMap = () => {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div>
-          <h1 className="page-title">Threat Map</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '2px' }}>
-            Geographic distribution of detected attack destinations
+        <div className="tm-head">
+          <h1 className="ui-pagehead__title">Threat map</h1>
+          <p className="ui-pagehead__sub">
+            Approximate destination locations for alerts that resolved to
+            coordinates. Positions come from an IP database lookup, not from
+            the sensor, and are accurate to a region at best.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -120,27 +132,23 @@ const ThreatMap = () => {
                 fontSize: '0.78rem',
               }}
             >
-              ✕ Clear focus
+              Clear focus
             </button>
           )}
-          {['all', 'high', 'medium', 'low'].map(s => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              style={{
-                background: filter === s ? (s === 'all' ? 'var(--accent-main)' : SEV_COLOR[s]) : 'transparent',
-                border: `1px solid ${s === 'all' ? 'var(--accent-main)' : SEV_COLOR[s]}`,
-                borderRadius: 6,
-                color: filter === s ? '#fff' : 'var(--text-muted)',
-                padding: '4px 12px',
-                cursor: 'pointer',
-                fontSize: '0.78rem',
-                textTransform: 'capitalize',
-              }}
-            >
-              {s === 'all' ? 'All' : s}
-            </button>
-          ))}
+          <div className="seg" role="group" aria-label="Filter by severity">
+            {['all', 'high', 'medium', 'low'].map(s => (
+              <button
+                key={s}
+                type="button"
+                className="seg-btn"
+                aria-pressed={filter === s}
+                onClick={() => setFilter(s)}
+                style={{ textTransform: 'capitalize' }}
+              >
+                {s === 'all' ? 'All' : s}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -186,34 +194,23 @@ const ThreatMap = () => {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' }}>
+      <dl className="triage tm-stats">
         {[
-          { label: 'Total Alerts', value: stats.total, color: 'var(--text-main)' },
-          { label: 'Geo-mapped', value: stats.mapped, color: 'var(--accent-main)' },
-          { label: 'High', value: stats.high, color: SEV_COLOR.high },
-          { label: 'Medium', value: stats.medium, color: SEV_COLOR.medium },
-          { label: 'Low', value: stats.low, color: SEV_COLOR.low },
-        ].map(({ label, value, color }) => (
-          <div key={label} style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            padding: '10px 18px',
-            minWidth: 90,
-          }}>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{label}</div>
-            <div style={{ color, fontSize: '1.3rem', fontWeight: 700 }}>{loading ? '…' : value}</div>
+          { label: 'Alerts loaded', value: stats.total, hint: 'In this snapshot' },
+          { label: 'Geo-mapped',    value: stats.mapped, hint: 'Resolved to coordinates' },
+          { label: 'High',          value: stats.high, hint: 'Of the loaded set', mod: 'high' },
+          { label: 'Medium',        value: stats.medium, hint: 'Of the loaded set' },
+          { label: 'Low',           value: stats.low, hint: 'Of the loaded set' },
+        ].map(({ label, value, hint, mod }) => (
+          <div key={label} className={`triage__cell${mod ? ` triage__cell--${mod}` : ''}`}>
+            <dt>{label}</dt>
+            <dd className="triage__num">{loading ? '—' : value}</dd>
+            <dd className="triage__hint">{hint}</dd>
           </div>
         ))}
-      </div>
+      </dl>
 
-      <div style={{
-        borderRadius: 10,
-        overflow: 'hidden',
-        border: '1px solid var(--border-color)',
-        height: 'calc(100vh - 340px)',
-        minHeight: 360,
-      }}>
+      <div className="tm-map">
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'var(--bg-card)', color: 'var(--text-muted)' }}>
             Loading alerts…
@@ -302,9 +299,6 @@ const ThreatMap = () => {
         )}
       </div>
 
-      <footer className="footer" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)', marginTop: '1rem' }}>
-        <p>© 2026 Intrusion Detection Dashboard</p>
-      </footer>
     </>
   );
 };

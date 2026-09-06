@@ -1,6 +1,11 @@
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional
 from enum import Enum
+
+# Historical note: these models previously carried a `telegram_id` field for the
+# removed Telegram bot integration. The field is no longer accepted or returned by
+# the API. Existing MongoDB user documents may still contain a stored `telegram_id`
+# from that era; it is left untouched here and is never read or written by current
+# code. Purging it from stored documents is a separate, deliberate operator action.
 
 class RoleEnum(str, Enum):
     ANALYST = "Security Analyst"
@@ -11,7 +16,6 @@ class UserIn(BaseModel):
     password: str
     full_name: str
     role: RoleEnum
-    telegram_id: Optional[str] = None  # optional field
 
     @field_validator('email', 'full_name', mode='before')
     def trim_strings(cls, v):
@@ -31,12 +35,10 @@ class UserOut(BaseModel):
     full_name: str
     role: str
     status: str
-    telegram_id: Optional[str] = None
 
 class EditProfileIn(BaseModel):
     full_name: str
-    telegram_id: Optional[str] = None
-    
+
     @field_validator('full_name', mode='before')
     def trim_strings(cls, v):
         if isinstance(v, str):
@@ -68,4 +70,3 @@ class UserListOut(BaseModel):
     full_name: str
     role: str
     status: str
-    telegram_id: Optional[str] = None

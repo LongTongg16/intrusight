@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { PageHeader, Button, Icon } from "../../components/ui";
 import './admin.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
@@ -101,257 +102,298 @@ function DatabaseMaintenance() {
     }
   };
 
-  if (loading) return (
-    <div className="admin-page">
-      <div className="admin-loading">Loading maintenance data…</div>
-    </div>
-  );
+  const collections = [
+    { key: "users",  label: "Users",       value: stats?.users?.count,  hint: "Accounts" },
+    { key: "logs",   label: "Log sources", value: stats?.logs?.count,   hint: "Configurations" },
+    { key: "alerts", label: "Alerts",      value: stats?.alerts?.count, hint: "Stored records" },
+  ];
+  const sev = stats?.alerts ?? {};
+  const sevTotal = (sev.high ?? 0) + (sev.medium ?? 0) + (sev.low ?? 0);
+  const connected = Boolean(health?.db_connected);
 
   return (
     <div className="admin-page">
 
-      {/* ── Toast ── */}
       {toast && (
-        <div className={`maint-toast maint-toast--${toast.type}`}>
-          <span className="maint-toast__icon">
-            {toast.type === "success" ? "✓" : toast.type === "error" ? "✕" : "ℹ"}
+        <div className={`maint-toast maint-toast--${toast.type}`} role="status">
+          <span className="maint-toast__icon" aria-hidden="true">
+            {toast.type === "error" ? <Icon.warn /> : <Icon.check />}
           </span>
           {toast.message}
         </div>
       )}
 
-      {/* ── Confirm Modal ── */}
       {confirmModal && (
-        <div className="maint-modal-backdrop" onClick={() => setConfirmModal(null)}>
-          <div className="maint-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="maint-modal__title">{confirmModal.title}</div>
+        <div className="maint-modal-backdrop ui-backdrop" onClick={() => setConfirmModal(null)}>
+          <div
+            className="maint-modal ui-pop"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="maint-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="maint-modal__title" id="maint-confirm-title">{confirmModal.title}</div>
             {confirmModal.warning && (
-              <div className="maint-modal__warning">{confirmModal.warning}</div>
+              <div className="maint-modal__warning">
+                <Icon.warn />
+                <span>{confirmModal.warning}</span>
+              </div>
             )}
             <p className="maint-modal__msg">{confirmModal.message}</p>
             <div className="maint-modal__actions">
-              <button
-                className="maint-btn maint-btn--ghost"
-                onClick={() => setConfirmModal(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className={`maint-btn maint-btn--${confirmModal.variant || "danger"}`}
+              <Button variant="ghost" onClick={() => setConfirmModal(null)}>Cancel</Button>
+              <Button
+                variant={confirmModal.variant === "danger" ? "danger" : "primary"}
                 onClick={confirmModal.onConfirm}
               >
+                {confirmModal.confirmIcon}
                 {confirmModal.confirmLabel}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Page Header ── */}
-      <div className="admin-page-header" style={{ marginBottom: "2rem" }}>
-        <h1>Database Maintenance</h1>
-        <p>Monitor health, manage backups, and perform housekeeping tasks</p>
-      </div>
+      <PageHeader
+        title="Maintenance"
+        subtitle="Database state, backups and housekeeping for this deployment. Everything here reports on stored data — nothing on this page contacts a sensor."
+        actions={
+          <Button onClick={fetchAll} loading={loading}>
+            <Icon.refresh /> Refresh
+          </Button>
+        }
+      />
 
-      {/* ── System Health ── */}
-      <div className="maint-section-label">System Health</div>
-      <div className="maint-card" style={{ marginBottom: "1.5rem" }}>
-        <div className="maint-card__header">
-          <span className="maint-card__header-title">Current Status</span>
-          <button className="maint-btn maint-btn--ghost" onClick={fetchAll}>
-            ↻ Refresh
-          </button>
-        </div>
-        <div className="maint-status-grid">
-          <div className="maint-status-item">
-            <span className="maint-status-item__label">Database Connection</span>
-            <span className="maint-status-item__value">
-              <span className={`maint-dot ${health?.db_connected ? "maint-dot--on" : "maint-dot--off"}`} />
-              {health?.db_connected ? "Connected" : "Disconnected"}
+      <div className="ui-enter">
+
+        {/* ── 1. DATABASE STATE ───────────────────────────────────
+            A split status band, not a card: connection state on the
+            left, a data strip of counts on the right. */}
+        <section className="ops" aria-labelledby="maint-db">
+          <div className="ops__head">
+            <h2 className="ops__title" id="maint-db">Database</h2>
+            <span className="ops__meta ui-mono">
+              {health?.checked_at ? `checked ${formatDate(health.checked_at)}` : "not checked"}
             </span>
           </div>
-          <div className="maint-status-item">
-            <span className="maint-status-item__label">Total Documents</span>
-            <span className="maint-status-item__value maint-stat-num">
-              {health?.total_documents?.toLocaleString() ?? "—"}
-            </span>
-          </div>
-          <div className="maint-status-item">
-            <span className="maint-status-item__label">Backups Available</span>
-            <span className="maint-status-item__value maint-stat-num">
-              {health?.backup_count ?? 0}
-            </span>
-          </div>
-          <div className="maint-status-item">
-            <span className="maint-status-item__label">Latest Backup</span>
-            <span className="maint-status-item__value maint-mono maint-mono--sm">
-              {health?.latest_backup ?? "No backups yet"}
-            </span>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Collection Statistics ── */}
-      <div className="maint-section-label">Collection Statistics</div>
-      <div className="maint-summary-grid" style={{ marginBottom: "1.5rem" }}>
-        <div className="maint-summary-card maint-summary-card--blue">
-          <div className="maint-summary-card__label">Users</div>
-          <div className="maint-summary-card__value">{stats?.users?.count ?? 0}</div>
-          <div className="maint-summary-card__sub">Registered accounts</div>
-        </div>
-        <div className="maint-summary-card maint-summary-card--teal">
-          <div className="maint-summary-card__label">Log Sources</div>
-          <div className="maint-summary-card__value">{stats?.logs?.count ?? 0}</div>
-          <div className="maint-summary-card__sub">IDS connections</div>
-        </div>
-        <div className="maint-summary-card maint-summary-card--amber">
-          <div className="maint-summary-card__label">Total Alerts</div>
-          <div className="maint-summary-card__value">{stats?.alerts?.count ?? 0}</div>
-          <div className="maint-alert-pills">
-            <span className="maint-pill maint-pill--high">H: {stats?.alerts?.high ?? 0}</span>
-            <span className="maint-pill maint-pill--mid">M: {stats?.alerts?.medium ?? 0}</span>
-            <span className="maint-pill maint-pill--low">L: {stats?.alerts?.low ?? 0}</span>
-          </div>
-        </div>
-      </div>
+          <div className="dbstate">
+            <div className={`dbstate__conn dbstate__conn--${connected ? "on" : "off"}`}>
+              <span className="dbstate__dot" aria-hidden="true" />
+              <span className="dbstate__connbody">
+                <span className="dbstate__connlabel">
+                  {loading ? "Checking…" : connected ? "Connected" : "Disconnected"}
+                </span>
+                <span className="dbstate__connsub ui-mono">MongoDB</span>
+              </span>
+            </div>
 
-      {/* ── Backup & Restore ── */}
-      <div className="maint-section-label">Backup &amp; Restore</div>
-      <div className="maint-card" style={{ marginBottom: "1.5rem" }}>
-        <div className="maint-card__header">
-          <div>
-            <div className="maint-card__header-title">Create Backup</div>
-            <div className="maint-card__header-sub">Exports all collections to compressed file</div>
-          </div>
-          <button
-            className="maint-btn maint-btn--success"
-            disabled={isBackingUp}
-            onClick={handleBackup}
-          >
-            {isBackingUp ? "⏳ Backing up…" : "⬇ Run Backup"}
-          </button>
-        </div>
-
-        <div className="maint-info-banner">
-          <span className="maint-info-banner__icon">ℹ</span>
-          Restore verifies recoverability — live data is untouched.
-        </div>
-
-        {backups.length === 0 ? (
-          <div className="admin-empty-state">No backups found.</div>
-        ) : (
-          <table className="maint-table">
-            <thead>
-              <tr>
-                <th className="maint-th">Filename</th>
-                <th className="maint-th">Size</th>
-                <th className="maint-th">Created</th>
-                <th className="maint-th">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {backups.map((b) => (
-                <tr key={b.filename} className="maint-tr">
-                  <td className="maint-td maint-mono">{b.filename}</td>
-                  <td className="maint-td">{b.size_kb} KB</td>
-                  <td className="maint-td">{formatDate(b.created_at)}</td>
-                  <td className="maint-td">
-                    <button
-                      className="maint-btn maint-btn--accent maint-btn--sm"
-                      disabled={isRestoring}
-                      onClick={() => setConfirmModal({
-                        title: "Verify Backup Restore",
-                        message: `Verify "${b.filename}" in a test environment?`,
-                        confirmLabel: "↺ Verify Restore",
-                        variant: "accent",
-                        onConfirm: () => handleRestore(b.filename),
-                      })}
-                    >
-                      ↺ Verify
-                    </button>
-                  </td>
-                </tr>
+            <dl className="dbstate__strip">
+              <div className="dbstate__cell">
+                <dt>Documents</dt>
+                <dd className="dbstate__num">
+                  {health?.total_documents != null ? health.total_documents.toLocaleString() : "—"}
+                </dd>
+              </div>
+              {collections.map((c) => (
+                <div className="dbstate__cell" key={c.key}>
+                  <dt>{c.label}</dt>
+                  <dd className="dbstate__num">{c.value != null ? c.value.toLocaleString() : "—"}</dd>
+                  <dd className="dbstate__hint">{c.hint}</dd>
+                </div>
               ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+            </dl>
+          </div>
 
-      {/* ── Housekeeping ── */}
-      <div className="maint-section-label">Housekeeping</div>
-      <div className="maint-card" style={{ marginBottom: "1.5rem" }}>
-        <div className="maint-card__header">
-          <div>
-            <div className="maint-card__header-title">Purge Old Alerts</div>
-            <div className="maint-card__header-sub">Delete alerts older than specified days</div>
+          {/* Severity split of the stored alerts — real counts only. */}
+          {sevTotal > 0 && (
+            <div className="dbstate__sev">
+              <span className="dbstate__sevlabel">Alert severity</span>
+              <div className="dbstate__sevbar" role="img"
+                   aria-label={`${sev.high} high, ${sev.medium} medium, ${sev.low} low`}>
+                {["high", "medium", "low"].map((k) => (
+                  sev[k] > 0 ? (
+                    <span key={k} className={`dbstate__seg dbstate__seg--${k}`}
+                          style={{ width: `${(sev[k] / sevTotal) * 100}%` }} />
+                  ) : null
+                ))}
+              </div>
+              <span className="dbstate__sevlegend">
+                <span className="dbstate__key dbstate__key--high">{sev.high ?? 0} high</span>
+                <span className="dbstate__key dbstate__key--medium">{sev.medium ?? 0} medium</span>
+                <span className="dbstate__key dbstate__key--low">{sev.low ?? 0} low</span>
+              </span>
+            </div>
+          )}
+        </section>
+
+        {/* ── 2. BACKUP & RECOVERY ────────────────────────────────
+            A split pane: the action and its explanation on the left,
+            the stored backups as a list on the right. */}
+        <section className="ops" aria-labelledby="maint-backup">
+          <div className="ops__head">
+            <h2 className="ops__title" id="maint-backup">Backup &amp; recovery</h2>
+            <span className="ops__meta">{backups.length} stored</span>
           </div>
-        </div>
-        <div className="maint-housekeeping-body">
-          <div className="maint-warning-banner">
-            ⚠ This action cannot be undone. A backup is recommended before purging.
+
+          <div className="bk">
+            <div className="bk__action">
+              <p className="bk__lead">Create a backup</p>
+              <p className="bk__text">
+                Exports every collection to a compressed archive on the server.
+              </p>
+              <Button variant="primary" loading={isBackingUp} onClick={handleBackup}>
+                <Icon.archive /> Run backup
+              </Button>
+
+              <p className="bk__note">
+                <Icon.info />
+                <span>
+                  Verifying a backup restores it into temporary
+                  <code className="ui-mono"> restore_test_* </code>
+                  collections. Live data is never overwritten.
+                </span>
+              </p>
+            </div>
+
+            <div className="bk__list">
+              {backups.length === 0 ? (
+                <div className="ops-empty">
+                  <span className="ops-empty__icon" aria-hidden="true"><Icon.archive /></span>
+                  <div>
+                    <p className="ops-empty__title">No backups yet</p>
+                    <p className="ops-empty__text">Run a backup to create the first archive.</p>
+                  </div>
+                </div>
+              ) : (
+                <ul className="bklist">
+                  {backups.map((b) => (
+                    <li className="bkrow" key={b.filename}>
+                      <span className="bkrow__icon" aria-hidden="true"><Icon.archive /></span>
+                      <span className="bkrow__body">
+                        <span className="bkrow__name ui-mono">{b.filename}</span>
+                        <span className="bkrow__meta ui-mono">
+                          {b.size_kb} KB · {formatDate(b.created_at)}
+                        </span>
+                      </span>
+                      <Button
+                        size="sm"
+                        loading={isRestoring}
+                        onClick={() => setConfirmModal({
+                          title: "Verify this backup?",
+                          message: `"${b.filename}" will be restored into temporary restore_test_* collections so its contents can be checked. Live data is not touched.`,
+                          confirmLabel: "Verify restore",
+                          confirmIcon: <Icon.restore />,
+                          variant: "primary",
+                          onConfirm: () => handleRestore(b.filename),
+                        })}
+                      >
+                        <Icon.restore /> Verify
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-          <div className="maint-purge-row">
-            <span className="maint-purge-label">Older than</span>
-            <input
-              type="number"
-              className="maint-purge-input"
-              value={purgeDays}
-              min={1}
-              onChange={(e) => setPurgeDays(Number(e.target.value))}
-            />
-            <span className="maint-purge-label">days</span>
-            <button
-              className="maint-btn maint-btn--danger"
-              disabled={isPurging}
-              style={{ marginLeft: "auto" }}
-              onClick={() => setConfirmModal({
-                title: "Confirm Alert Purge",
-                message: `Permanently delete all alerts older than ${purgeDays} days?`,
-                warning: "This action cannot be undone. A backup is recommended.",
-                confirmLabel: "🗑 Purge Alerts",
-                variant: "danger",
-                onConfirm: handlePurge,
+        </section>
+
+        {/* ── 3. HOUSEKEEPING ─────────────────────────────────────
+            A contained danger zone: a bordered section with a warning
+            rail, holding one grouped control. */}
+        <section className="ops ops--danger" aria-labelledby="maint-danger">
+          <div className="ops__head">
+            <h2 className="ops__title" id="maint-danger">
+              <Icon.warn /> Destructive actions
+            </h2>
+          </div>
+
+          <div className="danger">
+            <div className="danger__body">
+              <p className="danger__lead">Purge old alerts</p>
+              <p className="danger__text">
+                Permanently deletes stored alerts older than the chosen age. This
+                cannot be undone — take a backup first.
+              </p>
+            </div>
+
+            <div className="danger__control">
+              <label className="danger__field" htmlFor="purge-days">
+                <span className="danger__fieldlabel">Older than</span>
+                <span className="danger__input">
+                  <input
+                    id="purge-days"
+                    type="number"
+                    value={purgeDays}
+                    min={1}
+                    onChange={(e) => setPurgeDays(Number(e.target.value))}
+                  />
+                  <span className="danger__unit">days</span>
+                </span>
+              </label>
+
+              <Button
+                variant="danger"
+                loading={isPurging}
+                onClick={() => setConfirmModal({
+                  title: "Purge stored alerts?",
+                  message: `Every alert older than ${purgeDays} days will be permanently deleted from the database.`,
+                  warning: "This cannot be undone. A backup is recommended first.",
+                  confirmLabel: "Purge alerts",
+                  confirmIcon: <Icon.trash />,
+                  variant: "danger",
+                  onConfirm: handlePurge,
+                })}
+              >
+                <Icon.trash /> Purge alerts
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 4. ACTIVITY ─────────────────────────────────────────
+            A timeline, deliberately not another table. */}
+        <section className="ops" aria-labelledby="maint-activity">
+          <div className="ops__head">
+            <h2 className="ops__title" id="maint-activity">Recent activity</h2>
+            <span className="ops__meta">{logs.length} recorded</span>
+          </div>
+
+          {logs.length === 0 ? (
+            <div className="ops-empty">
+              <span className="ops-empty__icon" aria-hidden="true"><Icon.clock /></span>
+              <div>
+                <p className="ops-empty__title">No maintenance activity yet</p>
+                <p className="ops-empty__text">
+                  Backups, restore checks and purges are recorded here as they run.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <ol className="tl">
+              {logs.map((log, i) => {
+                // `status` comes straight from a Mongo document; older entries
+                // may predate the field, and an unguarded .toLowerCase() here
+                // used to take the whole page down.
+                const status = String(log.status ?? "unknown").toLowerCase();
+                return (
+                  <li className={`tl__item tl__item--${status}`} key={i}>
+                    <span className="tl__marker" aria-hidden="true" />
+                    <div className="tl__body">
+                      <p className="tl__head">
+                        <span className="tl__action">{String(log.action ?? "—").replace(/_/g, " ")}</span>
+                        <span className={`tl__status tl__status--${status}`}>{log.status ?? "unknown"}</span>
+                      </p>
+                      <p className="tl__detail">{log.detail}</p>
+                    </div>
+                    <time className="tl__time ui-mono">{formatDate(log.timestamp)}</time>
+                  </li>
+                );
               })}
-            >
-              {isPurging ? "⏳ Purging…" : "🗑 Purge Old Alerts"}
-            </button>
-          </div>
-        </div>
+            </ol>
+          )}
+        </section>
       </div>
-
-      {/* ── Activity Log ── */}
-      <div className="maint-section-label">Maintenance Activity Log</div>
-      <div className="maint-card">
-        {logs.length === 0 ? (
-          <div className="admin-empty-state">No logs recorded.</div>
-        ) : (
-          <table className="maint-table">
-            <thead>
-              <tr>
-                <th className="maint-th">Time</th>
-                <th className="maint-th">Action</th>
-                <th className="maint-th">Detail</th>
-                <th className="maint-th">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log, i) => (
-                <tr key={i} className="maint-tr">
-                  <td className="maint-td">{formatDate(log.timestamp)}</td>
-                  <td className="maint-td maint-td--primary">{log.action}</td>
-                  <td className="maint-td maint-td--muted">{log.detail}</td>
-                  <td className="maint-td">
-                    <span className={`maint-badge maint-badge--${log.status.toLowerCase()}`}>
-                      ● {log.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
     </div>
   );
 }

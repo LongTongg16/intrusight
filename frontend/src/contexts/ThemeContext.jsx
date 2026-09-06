@@ -20,41 +20,43 @@ export const VALID_THEMES = [
 // always beat any stylesheet rule regardless of specificity.
 const THEME_VARS = {
   dark: {
-    "--accent-dim":    "rgba(59,130,246,0.15)",
-    "--bg-primary":    "#0f172a",
-    "--bg-secondary":  "#1e293b",
-    "--bg-card":       "#1e293b",
-    "--bg-card-alt":   "#0b1224",
-    "--bg-sidebar":    "#0f172a",
-    "--bg-input":      "#1e293b",
-    "--bg-hover":      "#334155",
-    "--bg-main":       "#0f172a",
-    "--text-primary":  "#f1f5f9",
-    "--text-secondary":"#94a3b8",
-    "--text-main":     "#f1f5f9",
-    "--text-muted":    "#94a3b8",
-    "--border-primary":"#334155",
-    "--border-color":  "#334155",
-    "--primary":       "#3b82f6",
-    "--primary-hover": "#2563eb",
-    "--primary-bg":    "rgba(59,130,246,0.1)",
-    "--accent-primary":"#3b82f6",
-    "--accent-main":   "#3b82f6",
-    "--success":       "#10b981",
-    "--success-bg":    "rgba(16,185,129,0.1)",
-    "--warning":       "#f59e0b",
-    "--warning-bg":    "rgba(245,158,11,0.1)",
-    "--error":         "#ef4444",
-    "--error-bg":      "rgba(239,68,68,0.1)",
-    "--sev-high-bg":   "rgba(239,68,68,0.15)",
-    "--sev-high-color":"#ef4444",
-    "--sev-med-bg":    "rgba(245,158,11,0.15)",
-    "--sev-med-color": "#f59e0b",
-    "--sev-low-bg":    "rgba(16,185,129,0.15)",
-    "--sev-low-color": "#10b981",
-    "--sidebar-text":  "#94a3b8",
-    "--sidebar-active":"#3b82f6",
-    "--nav-bg":        "#1e293b",
+    "--accent-dim":    "rgba(76,201,240,0.14)",
+    "--bg-primary":    "#080d18",
+    "--bg-secondary":  "#0f1829",
+    "--bg-card":       "#0f1829",
+    "--bg-card-alt":   "#0b1220",
+    "--bg-sidebar":    "#0b1220",
+    "--bg-input":      "#0b1220",
+    "--bg-hover":      "#18243c",
+    "--bg-main":       "#080d18",
+    "--text-primary":  "#f6f9fd",
+    "--text-secondary":"#93a1b8",
+    "--text-main":     "#dde5f2",
+    "--text-muted":    "#93a1b8",
+    "--text-dim":      "#7a8aa2",
+    "--border-primary":"#1e2c47",
+    "--border-color":  "#1e2c47",
+    "--border-light":  "#16223a",
+    "--primary":       "#4cc9f0",
+    "--primary-hover": "#7fdcf7",
+    "--primary-bg":    "rgba(76,201,240,0.1)",
+    "--accent-primary":"#4cc9f0",
+    "--accent-main":   "#4cc9f0",
+    "--success":       "#34d399",
+    "--success-bg":    "rgba(52,211,153,0.1)",
+    "--warning":       "#fbbf24",
+    "--warning-bg":    "rgba(251,191,36,0.1)",
+    "--error":         "#f87171",
+    "--error-bg":      "rgba(248,113,113,0.1)",
+    "--sev-high-bg":   "rgba(248,113,113,0.14)",
+    "--sev-high-color":"#f87171",
+    "--sev-med-bg":    "rgba(251,191,36,0.14)",
+    "--sev-med-color": "#fbbf24",
+    "--sev-low-bg":    "rgba(52,211,153,0.14)",
+    "--sev-low-color": "#34d399",
+    "--sidebar-text":  "#93a1b8",
+    "--sidebar-active":"#4cc9f0",
+    "--nav-bg":        "#0b1220",
   },
   light: {
     "--accent-dim":    "rgba(37,99,235,0.08)",
@@ -66,6 +68,8 @@ const THEME_VARS = {
     "--bg-input":      "#f8fafc",
     "--bg-hover":      "#e2e8f0",
     "--bg-main":       "#f8fafc",
+    "--text-dim":     "#475569",
+    "--border-light": "#f1f5f9",
     "--text-primary":  "#0f172a",
     "--text-secondary":"#64748b",
     "--text-main":     "#0f172a",
@@ -103,6 +107,8 @@ const THEME_VARS = {
     "--bg-input":      "#fef9c3",
     "--bg-hover":      "#fde68a",
     "--bg-main":       "#fffbeb",
+    "--text-dim":     "#57534e",
+    "--border-light": "#fef3c7",
     "--text-primary":  "#1c1917",
     "--text-secondary":"#78716c",
     "--text-main":     "#1c1917",
@@ -140,6 +146,8 @@ const THEME_VARS = {
     "--bg-input":      "#1a3356",
     "--bg-hover":      "#2d5a8e",
     "--bg-main":       "#1e3a5f",
+    "--text-dim":     "#cbd5e1",
+    "--border-light": "#2d5b93",
     "--text-primary":  "#e0f2fe",
     "--text-secondary":"#93c5fd",
     "--text-main":     "#e0f2fe",
@@ -177,6 +185,8 @@ const THEME_VARS = {
     "--bg-input":      "#111111",
     "--bg-hover":      "#2a2a2a",
     "--bg-main":       "#0a0a0a",
+    "--text-dim":     "#a3a3a3",
+    "--border-light": "#262626",
     "--text-primary":  "#f5f5f5",
     "--text-secondary":"#a3a3a3",
     "--text-main":     "#f5f5f5",
@@ -207,9 +217,6 @@ const THEME_VARS = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const getSystemTheme = () =>
-  window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-
 const getInitialTheme = () => {
   try {
     const saved = localStorage.getItem("theme");
@@ -217,8 +224,19 @@ const getInitialTheme = () => {
   } catch {
     // localStorage blocked (e.g. sandboxed iframe)
   }
-  return getSystemTheme();
+  // Dark is the product's own ground, not a preference we inherit. Following
+  // the OS meant an analyst on a light-set machine got a white admin panel
+  // while the public site stayed dark navy — two products, one codebase.
+  // A visitor who explicitly picks a theme in Appearance still wins; this is
+  // only the starting point for someone who has never chosen.
+  return "dark";
 };
+
+// Union of every variable declared by any theme, so switching can clear the
+// outgoing theme completely instead of leaving orphaned keys behind.
+const ALL_THEME_KEYS = Array.from(
+  new Set(Object.values(THEME_VARS).flatMap((vars) => Object.keys(vars)))
+);
 
 function applyTheme(theme) {
   const root = document.documentElement;
@@ -232,7 +250,13 @@ function applyTheme(theme) {
 
   // Inject CSS variables as inline styles on <html> — inline styles always
   // win over any stylesheet rule, so this bypasses all specificity conflicts.
+  //
+  // Every key any theme declares is cleared first. Previously only the
+  // incoming theme's keys were set, so a variable one theme defined and
+  // another omitted kept its stale value after a switch — which is how a
+  // dark theme's muted grey ended up on a white surface.
   const vars = THEME_VARS[theme] ?? THEME_VARS.dark;
+  ALL_THEME_KEYS.forEach((key) => root.style.removeProperty(key));
   Object.entries(vars).forEach(([key, value]) => {
     root.style.setProperty(key, value);
   });
@@ -250,25 +274,6 @@ export function ThemeProvider({ children }) {
       // localStorage blocked
     }
   }, [theme]);
-
-  // Listen for OS-level theme changes — only if user has not manually set a theme
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const handleChange = () => {
-      try {
-        const saved = localStorage.getItem("theme");
-        if (!saved) {
-          setThemeState(media.matches ? "dark" : "light");
-        }
-      } catch {
-        setThemeState(media.matches ? "dark" : "light");
-      }
-    };
-
-    media.addEventListener("change", handleChange);
-    return () => media.removeEventListener("change", handleChange);
-  }, []);
 
   const setTheme = (newTheme) => {
     if (VALID_THEMES.includes(newTheme)) {

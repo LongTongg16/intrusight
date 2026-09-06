@@ -1,5 +1,14 @@
 # Quick Start Guide - Testing
 
+> **Historical working note.** This file records the state of the project at an
+> earlier milestone. Test counts, coverage figures, file paths, and readiness
+> statements in it are not current and are not maintained. For the current
+> position see [`README.md`](../../README.md) and
+> [`SECURITY_AUDIT.md`](../../SECURITY_AUDIT.md), which are authoritative where
+> they conflict with this file.
+> For local application startup, including persistent `backend/.env` setup and
+> macOS MongoDB service checks, use the root README rather than this test note.
+
 ## 30-Second Setup
 
 ### 1. Install Dependencies (1 minute)

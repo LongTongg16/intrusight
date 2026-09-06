@@ -1,5 +1,12 @@
 # Testing Framework Implementation Checklist ✅
 
+> **Historical working note.** This file records the state of the project at an
+> earlier milestone. Test counts, coverage figures, file paths, and readiness
+> statements in it are not current and are not maintained. For the current
+> position see [`README.md`](../../README.md) and
+> [`SECURITY_AUDIT.md`](../../SECURITY_AUDIT.md), which are authoritative where
+> they conflict with this file.
+
 ## Core Implementation (100% Complete)
 
 ### Test Structure
@@ -120,7 +127,7 @@
 - ✅ Example test cases
 - ✅ CI/CD documentation
 
-## Ready for Production
+## Testing Framework Readiness
 
 The testing framework is now ready for:
 - ✅ Local development and testing

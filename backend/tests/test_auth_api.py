@@ -289,3 +289,53 @@ class TestLogout:
             assert response.status_code == 200
             assert response.json()["ok"] is True
             assert "Logged out successfully" in response.json()["message"]
+
+
+class TestPasswordChangeRouteContract:
+    """
+    Regression guard for the route the Profile pages call.
+
+    Both Profile pages used to PUT to `/api/users/profile/password`, which was
+    never registered, so the password-change UI returned 404. They now POST to
+    `/api/users/change-password` through the shared API service layer.
+    """
+
+    def _routes(self):
+        return {
+            (getattr(route, "path", ""), method)
+            for route in app.routes
+            for method in getattr(route, "methods", set())
+        }
+
+    def test_change_password_route_is_registered_for_post(self):
+        assert ("/api/users/change-password", "POST") in self._routes()
+
+    def test_stale_profile_password_path_is_not_registered(self):
+        paths = {path for path, _ in self._routes()}
+        assert "/api/users/profile/password" not in paths
+
+    def test_stale_profile_password_path_is_not_handled(self, client):
+        for call in (client.put, client.post):
+            response = call(
+                "/api/users/profile/password",
+                json={"current_password": "OldPass123!", "new_password": "NewPass456!"},
+            )
+            assert response.status_code in (404, 405)
+
+    def test_endpoint_body_contract_matches_the_frontend_payload(self):
+        """The keys the shared api.js `changePassword` helper sends."""
+        from models.user import ChangePasswordIn
+
+        body = ChangePasswordIn(
+            current_password="OldPass123!",
+            new_password="NewPass456!",
+        )
+
+        assert set(body.model_dump()) == {"current_password", "new_password"}
+
+    def test_change_password_requires_authentication(self, client):
+        response = client.post(
+            "/api/users/change-password",
+            json={"current_password": "OldPass123!", "new_password": "NewPass456!"},
+        )
+        assert response.status_code in (401, 403)

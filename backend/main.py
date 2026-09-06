@@ -1,10 +1,11 @@
 import os
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
+from config import load_backend_env
+from database import database_is_reachable
 from routes import auth
 from routes import alerts
 from routes import logs
@@ -12,7 +13,7 @@ from routes import maintenance
 from routes import reports
 from routes import traffic
 
-load_dotenv()
+load_backend_env()
 
 app = FastAPI(title="IDS Backend API")
 
@@ -49,10 +50,16 @@ def home():
 
 
 @app.get("/health")
-def health():
+async def health():
+    mongo_reachable = await database_is_reachable()
     return {
         "ok": True,
-        "service": "IDS Backend API"
+        "ready": mongo_reachable,
+        "service": "IDS Backend API",
+        "checks": {
+            "api": "healthy",
+            "mongodb": "reachable" if mongo_reachable else "unreachable",
+        },
     }
 
 

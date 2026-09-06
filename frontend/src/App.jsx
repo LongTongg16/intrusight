@@ -1,126 +1,96 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
 
-// Import the gatekeeper
 import ProtectedRoute from "./components/ProtectedRoute";
+import RouteFallback from "./components/RouteFallback";
+import ErrorBoundary from "./components/ErrorBoundary";
 
-// Shared Pages
-import Login from "./pages/shared/Login";
-import About from "./pages/shared/About";
-import Features from "./pages/shared/Features";
-import Demo from "./pages/shared/Demo";
-import Register from "./pages/shared/Register";
+/* ── Eager: the public entry points and auth flow ──────────────
+   These are what an unauthenticated visitor hits first, so they stay
+   in the main chunk to avoid a spinner on the very first paint.
+   ───────────────────────────────────────────────────────────── */
 import Visitor from "./pages/shared/Visitor";
-import ForgetPassword from "./pages/shared/ForgotPassword";
-import Logout from "./pages/shared/Logout";
-import ForcePasswordChange from "./pages/shared/ForcePasswordChange";
+import Login from "./pages/shared/Login";
 
-// Admin Pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import Usermanagement from "./pages/admin/UserManagement";
-import Profile from "./pages/admin/Profile";
-import AdminSidebar from "./pages/admin/AdminSidebar";
-import LogManagement from "./pages/admin/LogManagement";
-import AdminSettings from "./pages/admin/Settings";
-import DatabaseMaintenance from "./pages/admin/DatabaseMaintenance";
+/* ── Lazy: everything else ────────────────────────────────────
+   Route-level splitting keeps Recharts (Dashboard/Demo), Leaflet
+   (ThreatMap) and jsPDF (Reports) out of the initial bundle. Those
+   three libraries were roughly two thirds of it.
+   ───────────────────────────────────────────────────────────── */
+const About               = lazy(() => import("./pages/shared/About"));
+const Features            = lazy(() => import("./pages/shared/Features"));
+const Demo                = lazy(() => import("./pages/shared/Demo"));
+const Register            = lazy(() => import("./pages/shared/Register"));
+const ForgetPassword      = lazy(() => import("./pages/shared/ForgotPassword"));
+const Logout              = lazy(() => import("./pages/shared/Logout"));
+const ForcePasswordChange = lazy(() => import("./pages/shared/ForcePasswordChange"));
 
-// Analyst Pages
-import Dashboard from "./pages/analyst/Dashboard";
-import Alerts from "./pages/analyst/Alerts";
-import Reports from "./pages/analyst/Reports";
-import AnalystProfile from "./pages/analyst/Profile";
-import AlertDetails from "./pages/analyst/AlertDetails";
-import NetworkTraffic from "./pages/analyst/NetworkTraffic";
-import Notifications from "./pages/analyst/Notifications";
-import AnalystSettings from "./pages/analyst/Settings";
-import AnalystSidebar from "./pages/analyst/AnalystSidebar";
-import ThreatMap from "./pages/analyst/ThreatMap";
+const AnalystSidebar  = lazy(() => import("./pages/analyst/AnalystSidebar"));
+const Dashboard       = lazy(() => import("./pages/analyst/Dashboard"));
+const Alerts          = lazy(() => import("./pages/analyst/Alerts"));
+const AlertDetails    = lazy(() => import("./pages/analyst/AlertDetails"));
+const Reports         = lazy(() => import("./pages/analyst/Reports"));
+const NetworkTraffic  = lazy(() => import("./pages/analyst/NetworkTraffic"));
+const ThreatMap       = lazy(() => import("./pages/analyst/ThreatMap"));
+const Notifications   = lazy(() => import("./pages/analyst/Notifications"));
+const AnalystSettings = lazy(() => import("./pages/analyst/Settings"));
+const AnalystProfile  = lazy(() => import("./pages/analyst/Profile"));
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
-
-const getAuthHeader = () => ({
-  headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-});
+const AdminSidebar        = lazy(() => import("./pages/admin/AdminSidebar"));
+const AdminDashboard      = lazy(() => import("./pages/admin/AdminDashboard"));
+const Usermanagement      = lazy(() => import("./pages/admin/UserManagement"));
+const LogManagement       = lazy(() => import("./pages/admin/LogManagement"));
+const AdminSettings       = lazy(() => import("./pages/admin/Settings"));
+const DatabaseMaintenance = lazy(() => import("./pages/admin/DatabaseMaintenance"));
+const AdminProfile        = lazy(() => import("./pages/admin/Profile"));
 
 function App() {
-  const [logs, setLogs] = useState([]);
-
-  const fetchLogs = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    try {
-      const res = await axios.get(`${API_BASE}/api/logs`, getAuthHeader());
-      setLogs(res.data.items ?? res.data ?? []);
-    } catch (err) {
-      console.error("Failed to fetch log sources:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
-
   return (
     <BrowserRouter>
-      <Routes>
-        {/* --- PUBLIC ROUTES --- */}
-        <Route path="/" element={<Visitor />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/features" element={<Features />} />
-        <Route path="/demo" element={<Demo />} />
-        <Route path="/forgotpassword" element={<ForgetPassword />} />
-        <Route path="/logout" element={<Logout />} />
-        <Route
-          path="/force-password-change"
-          element={<ForcePasswordChange />}
-        />
+      <ErrorBoundary>
+        <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          {/* --- PUBLIC ROUTES --- */}
+          <Route path="/" element={<Visitor />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/features" element={<Features />} />
+          <Route path="/demo" element={<Demo />} />
+          <Route path="/forgotpassword" element={<ForgetPassword />} />
+          <Route path="/logout" element={<Logout />} />
+          <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
-        {/* --- PROTECTED ZONE --- */}
-        <Route element={<ProtectedRoute />}>
-          {/* Analyst Layout + Routes */}
-          <Route element={<AnalystSidebar />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/alert/:id" element={<AlertDetails />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/network-traffic" element={<NetworkTraffic />} />
-            <Route path="/threat-map" element={<ThreatMap />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/settings" element={<AnalystSettings />} />
-            <Route path="/analyst/profile" element={<AnalystProfile />} />
-            <Route path="/profile" element={<AnalystProfile />} />
-          </Route>
+          {/* --- PROTECTED ZONE --- */}
+          <Route element={<ProtectedRoute />}>
+            {/* Analyst Layout + Routes */}
+            <Route element={<AnalystSidebar />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/alerts" element={<Alerts />} />
+              <Route path="/alert/:id" element={<AlertDetails />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/network-traffic" element={<NetworkTraffic />} />
+              <Route path="/threat-map" element={<ThreatMap />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/settings" element={<AnalystSettings />} />
+              <Route path="/analyst/profile" element={<AnalystProfile />} />
+              <Route path="/profile" element={<AnalystProfile />} />
+            </Route>
 
-          {/* Admin Layout + Routes */}
-          <Route path="/admin" element={<AdminSidebar />}>
-            <Route
-              index
-              element={
-                <AdminDashboard logs={logs} onRefreshLogs={fetchLogs} />
-              }
-            />
-            <Route path="users" element={<Usermanagement />} />
-            <Route
-              path="log-management"
-              element={
-                <LogManagement
-                  logs={logs}
-                  setLogs={setLogs}
-                  onRefreshLogs={fetchLogs}
-                />
-              }
-            />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="maintenance" element={<DatabaseMaintenance />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="logout" element={<Logout />} />
+            {/* Admin Layout + Routes */}
+            <Route path="/admin" element={<AdminSidebar />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<Usermanagement />} />
+              <Route path="log-management" element={<LogManagement />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="maintenance" element={<DatabaseMaintenance />} />
+              <Route path="profile" element={<AdminProfile />} />
+              <Route path="logout" element={<Logout />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
+        </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

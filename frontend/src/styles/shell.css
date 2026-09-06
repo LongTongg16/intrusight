@@ -1,0 +1,374 @@
+/* ═══════════════════════════════════════════════════════════════
+   APP SHELL — sidebar, page frame, section chrome
+
+   Shared by BOTH the admin and analyst layouts. Before this file the
+   two shells were styled independently in admin.css and analyst.css,
+   which is the main reason the product read as a set of separate
+   admin screens rather than one application.
+
+   Imported by AdminSidebar.jsx and AnalystSidebar.jsx directly — not
+   by a sibling route — so route-level code splitting cannot leave a
+   layout unstyled.
+   ═══════════════════════════════════════════════════════════════ */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--surface-0);
+  color: var(--text-body);
+}
+
+/* ── Sidebar ────────────────────────────────────────────────── */
+.shell__side {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  padding: 0;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border-subtle);
+  z-index: 20;
+}
+
+/* The one atmospheric gradient in the product. It sits behind the brand
+   block only, is 12% opacity at its strongest, and never touches a data
+   surface — depth, not glow. */
+.shell__side::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 210px;
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--accent) 11%, transparent) 0%,
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
+.shell__brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.shell__mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: linear-gradient(145deg, var(--accent) 0%, var(--accent-solid) 100%);
+  color: #04141b;
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--accent) 55%, transparent),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.shell__wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.shell__name {
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: var(--text-strong);
+  line-height: 1.1;
+}
+
+.shell__scope {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+  line-height: 1.1;
+}
+
+/* ── Navigation ─────────────────────────────────────────────── */
+.shell__nav {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px 12px;
+}
+
+.shell__group + .shell__group {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.shell__grouplabel {
+  padding: 0 8px 7px;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+}
+
+.shell__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.shell__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: var(--text-secondary-c);
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease),
+              background-color var(--dur-fast) var(--ease);
+}
+
+.shell__link svg {
+  flex-shrink: 0;
+  opacity: 0.72;
+  transition: opacity var(--dur-fast) var(--ease),
+              transform var(--dur-mid) var(--ease-out);
+}
+
+.shell__link:hover {
+  color: var(--text-strong);
+  background: var(--surface-3);
+}
+
+.shell__link:hover svg { opacity: 1; }
+
+/* Active state: a sliding accent rail plus a tinted surface. The rail is a
+   scaled pseudo-element rather than a border so it can animate; scaleY keeps
+   it off the layout. */
+.shell__link::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  width: 3px;
+  height: 20px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  transform: translateY(-50%) scaleY(0);
+  transform-origin: center;
+  transition: transform var(--dur-mid) var(--ease-spring);
+}
+
+.shell__link.is-active {
+  color: var(--text-strong);
+  font-weight: 560;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.shell__link.is-active::before { transform: translateY(-50%) scaleY(1); }
+.shell__link.is-active svg { opacity: 1; color: var(--accent); }
+
+.shell__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Count pill (e.g. pending approvals) — attention without alarm. */
+.shell__count {
+  margin-left: auto;
+  min-width: 19px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--surface-0);
+  background: var(--accent);
+}
+
+/* ── Account ────────────────────────────────────────────────── */
+.shell__foot {
+  padding: 12px 12px 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.shell__account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.shell__account:hover { background: var(--surface-3); }
+
+.shell__avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.shell__who { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+
+.shell__whoname {
+  font-size: var(--fs-sm);
+  font-weight: 550;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell__whorole {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-muted-c);
+}
+
+.shell__logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary-c);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.shell__logout:hover {
+  color: var(--feedback-error);
+  border-color: color-mix(in srgb, var(--feedback-error) 35%, transparent);
+  background: color-mix(in srgb, var(--feedback-error) 8%, transparent);
+}
+
+/* ── Main region ────────────────────────────────────────────── */
+.shell__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell__content {
+  flex: 1;
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 26px 30px 56px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .shell__content { padding: 22px 20px 44px; }
+}
+
+@media (max-width: 860px) {
+  .shell { flex-direction: column; }
+
+  .shell__side {
+    position: static;
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .shell__side::before { height: 100%; }
+
+  .shell__nav {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding: 0 10px 8px;
+    scrollbar-width: none;
+  }
+
+  .shell__nav::-webkit-scrollbar { display: none; }
+
+  .shell__group + .shell__group {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    border-left: 1px solid var(--border-subtle);
+    padding-left: 14px;
+  }
+
+  .shell__grouplabel { display: none; }
+  .shell__list { flex-direction: row; gap: 4px; }
+  .shell__link { white-space: nowrap; padding: 7px 12px; }
+
+  /* The sliding rail becomes an underline when the nav is horizontal. */
+  .shell__link::before {
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: -2px;
+    width: auto;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    transform: scaleX(0);
+  }
+
+  .shell__link.is-active::before { transform: scaleX(1); }
+
+  .shell__brand { padding: 12px 14px 10px; }
+
+  .shell__foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px 10px;
+  }
+
+  .shell__account { margin-bottom: 0; flex: 1; }
+  .shell__logout { width: auto; }
+}
+
+@media (max-width: 560px) {
+  .shell__content { padding: 18px 14px 36px; }
+  .shell__scope   { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell__link::before { transition: none; }
+}

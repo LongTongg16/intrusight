@@ -36,6 +36,13 @@ def test_ingestion_rejects_incorrect_key():
     assert exc.value.status_code == 401
 
 
+def test_ingestion_rejects_example_placeholder(monkeypatch):
+    monkeypatch.setenv("INGEST_API_KEY", "<generate-a-separate-ingestion-key>")
+    with pytest.raises(HTTPException) as exc:
+        verify_ingest_api_key("<generate-a-separate-ingestion-key>")
+    assert exc.value.status_code == 503
+
+
 def test_backup_path_rejects_traversal():
     with pytest.raises(HTTPException) as exc:
         get_backup_path("../../outside.json.gz")

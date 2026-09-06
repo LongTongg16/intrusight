@@ -11,7 +11,12 @@ const ALERTS_BASE = import.meta.env.VITE_ALERTS_URL || import.meta.env.VITE_API_
  * @param {string} baseUrl - Either AUTH_BASE or ALERTS_BASE
  * @param {string} path - The endpoint path
  */
-async function request(baseUrl, path, options = {}) {
+async function request(
+  baseUrl,
+  path,
+  options = {},
+  { redirectOnUnauthorized = true } = {},
+) {
   const token = localStorage.getItem("token");
   const headers = { 
     "Content-Type": "application/json", 
@@ -23,7 +28,7 @@ async function request(baseUrl, path, options = {}) {
   const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
 
   if (!res.ok) {
-    if (res.status === 401) {
+    if (res.status === 401 && redirectOnUnauthorized) {
       localStorage.removeItem("token");
       window.location.href = "/login";
     }
@@ -33,13 +38,18 @@ async function request(baseUrl, path, options = {}) {
   return res.json();
 }
 
-// --- AUTH SERVICES (Port 8000) ---
+// --- AUTH SERVICES ---
 
 export async function loginUser(email, password) {
-  return request(AUTH_BASE, "/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+  return request(
+    AUTH_BASE,
+    "/api/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    },
+    { redirectOnUnauthorized: false },
+  );
 }
 
 export async function registerUser(email, password, full_name, role = "Security Analyst") {
@@ -53,7 +63,17 @@ export async function healthCheck() {
   return request(AUTH_BASE, "/health");
 }
 
-// --- ALERTS & DASHBOARD SERVICES (Port 8001) ---
+export async function changePassword(currentPassword, newPassword) {
+  return request(AUTH_BASE, "/api/users/change-password", {
+    method: "POST",
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+}
+
+// --- ALERTS & DASHBOARD SERVICES ---
 
 export async function getDashboardSummary() {
   return request(ALERTS_BASE, "/api/alerts/dashboard/summary");
@@ -114,9 +134,4 @@ export async function refreshAllLocations() {
 
 export async function getTrafficLogs() {
   return request(ALERTS_BASE, "/api/traffic");
-}
-
-export async function getNotifications() {
-  console.warn("[api] GET /notifications not yet on backend – using mock data.");
-  return { ok: true, items: [] };
 }

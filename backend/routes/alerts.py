@@ -1,49 +1,104 @@
 from datetime import datetime, timezone
 from typing import Optional
-import os
 
 from fastapi import APIRouter, Header, HTTPException, Security
-import httpx
 from core.security import get_current_user, verify_ingest_api_key
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from database import database_is_reachable
 from services.alert_service import get_collection, SEVERITY_LABELS, ALLOWED_STATUS
-from services.user_service import get_users_with_telegram_id, get_user_by_email
+from services.user_service import get_user_by_email
 from services.geolocation_service import get_location_from_ip
+
+# The historical Telegram bot integration was removed: the bot identity behind it
+# is no longer trusted. Alert ingestion has no outbound messaging side effect and
+# alerts are surfaced through the dashboard only.
 
 router = APIRouter(prefix="/api", tags=["Alerts"])
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# ── Record kinds ──────────────────────────────────────────────────────────────
+# Not every engine produces a detection. Suricata and Snort assert "this traffic
+# matched a rule"; Zeek reports what a connection *was* (DNS query, TLS
+# handshake, connection summary) and Kismet reports what is *present* on the
+# air. Forcing the latter two to present a signature and a severity made them
+# look like alerts they are not, so the record kind is explicit.
+EVENT_KINDS = {"detection", "observation"}
 
-async def send_telegram_message(chat_id: str, text: str):
-    if not BOT_TOKEN or not chat_id or not text:
-        return False
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, json={"chat_id": chat_id, "text": text})
-        return response.is_success
-    except httpx.HTTPError:
-        return False
-
-
-SEVERITY_THRESHOLD = 2
+# How to read source_asset/destination_asset. Kismet identifies endpoints by
+# 802.11 hardware address; the wired engines use IP literals.
+ASSET_KINDS = {"ip", "mac"}
 
 
 class AlertIn(BaseModel):
+    """
+    The shared ingestion contract.
+
+    Every field added for multi-engine support is optional, and `src_ip`/
+    `dest_ip` were widened rather than replaced, so an ingestor written against
+    the original contract still validates unchanged. When an ingestor sends only
+    the new asset fields with `asset_kind="ip"`, the endpoint derives the legacy
+    IP fields from them (see `ingest_alert`), so stored documents and every
+    existing reader keep the shape they had.
+    """
     timestamp: str
-    src_ip: str
-    dest_ip: str
     signature: str
     severity: int = Field(ge=1, le=3)
+
+    # Legacy endpoint fields. Optional since Kismet has no IP to report; still
+    # populated for every IP-based engine.
+    src_ip: Optional[str] = None
+    dest_ip: Optional[str] = None
     src_port: Optional[int] = None
     dest_port: Optional[int] = None
     proto: Optional[str] = None
     category: Optional[str] = None
     sid: Optional[int] = None
     source_nids: Optional[str] = None
+
+    # ── Multi-engine extension ────────────────────────────────────────────
+    event_kind: str = "detection"
+    observation_type: Optional[str] = None
+
+    # Canonical endpoints. For IP engines these mirror src_ip/dest_ip; for
+    # Kismet they carry MAC addresses and asset_kind says so, which is what
+    # keeps hardware addresses out of the IP-typed fields.
+    source_asset: Optional[str] = None
+    destination_asset: Optional[str] = None
+    asset_kind: Optional[str] = None
+
+    # Engine-native fields that do not belong in the shared columns: Zeek's
+    # uid/service/duration/bytes, Kismet's SSID/BSSID/channel/encryption, and
+    # so on. Stored verbatim and rendered in the detail view only.
+    engine_context: Optional[dict] = None
+
+    @field_validator("event_kind")
+    @classmethod
+    def _known_event_kind(cls, value: str) -> str:
+        if value not in EVENT_KINDS:
+            raise ValueError(f"event_kind must be one of {sorted(EVENT_KINDS)}")
+        return value
+
+    @field_validator("asset_kind")
+    @classmethod
+    def _known_asset_kind(cls, value):
+        if value is not None and value not in ASSET_KINDS:
+            raise ValueError(f"asset_kind must be one of {sorted(ASSET_KINDS)}")
+        return value
+
+    @model_validator(mode="after")
+    def _require_an_endpoint(self):
+        """
+        A record must identify its endpoints somehow — either the legacy IP
+        fields or the asset fields. Rejecting the empty case here keeps the
+        "unknown 0.0.0.0" placeholders that used to appear out of the database.
+        """
+        if not (self.src_ip or self.source_asset):
+            raise ValueError("either src_ip or source_asset is required")
+        if not (self.dest_ip or self.destination_asset):
+            raise ValueError("either dest_ip or destination_asset is required")
+        return self
 
 
 class StatusUpdate(BaseModel):
@@ -61,19 +116,18 @@ class AlertUpdate(BaseModel):
     severity: Optional[int] = Field(default=None, ge=1, le=3)
 
 
-class TelegramAlertRequest(BaseModel):
-    alert_id: str
-
-
-@router.get("/")
-def home():
-    return {"ok": True, "message": "IDS backend is running"}
-
-
 @router.get("/health")
-def health():
-    collection = get_collection()
-    return {"ok": True, "mongo_connected": collection is not None}
+async def health():
+    mongo_reachable = await database_is_reachable()
+    return {
+        "ok": True,
+        "ready": mongo_reachable,
+        "mongo_connected": mongo_reachable,
+        "checks": {
+            "api": "healthy",
+            "mongodb": "reachable" if mongo_reachable else "unreachable",
+        },
+    }
 
 
 @router.post("/ingest/alerts", status_code=201)
@@ -92,29 +146,34 @@ async def ingest_alert(
     doc["notes"] = []
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
 
-    dest_location = get_location_from_ip(doc["dest_ip"])
-    if dest_location:
-        doc["dest_location"] = dest_location
+    # Reconcile the legacy IP fields with the canonical asset fields so a
+    # document is complete however the sender chose to describe its endpoints.
+    if doc.get("asset_kind") is None:
+        doc["asset_kind"] = "ip" if (doc.get("src_ip") or doc.get("dest_ip")) else None
 
-    src_location = get_location_from_ip(doc["src_ip"])
-    if src_location:
-        doc["src_location"] = src_location
+    if doc["asset_kind"] == "ip":
+        # A sender using only the new fields still gets the legacy shape.
+        doc["src_ip"] = doc.get("src_ip") or doc.get("source_asset")
+        doc["dest_ip"] = doc.get("dest_ip") or doc.get("destination_asset")
+
+    doc["source_asset"] = doc.get("source_asset") or doc.get("src_ip")
+    doc["destination_asset"] = doc.get("destination_asset") or doc.get("dest_ip")
+
+    # Geolocation runs on IP endpoints only. Kismet reports MAC addresses, and
+    # asset_kind is now an explicit signal rather than relying on the lookup to
+    # reject a non-IP string.
+    if doc["asset_kind"] == "ip":
+        dest_location = get_location_from_ip(doc.get("dest_ip"))
+        if dest_location:
+            doc["dest_location"] = dest_location
+
+        src_location = get_location_from_ip(doc.get("src_ip"))
+        if src_location:
+            doc["src_location"] = src_location
 
     result = collection.insert_one(doc)
     alert_id = str(result.inserted_id)
     collection.update_one({"_id": result.inserted_id}, {"$set": {"id": alert_id}})
-
-    if doc["severity"] <= SEVERITY_THRESHOLD:
-        location_info = ""
-        if dest_location:
-            location_info = f" ({dest_location.get('city', 'Unknown')}, {dest_location.get('country', 'Unknown')})"
-        text = f"🚨 Alert: {doc['signature']} from {doc['src_ip']} to {doc['dest_ip']}{location_info}, severity {doc['severity_label']}"
-        try:
-            users = await get_users_with_telegram_id()
-        except Exception:
-            users = []
-        for user in users:
-            await send_telegram_message(user["telegram_id"], text)
 
     return {"ok": True, "id": alert_id}
 
@@ -165,34 +224,6 @@ def summary(current_user: dict = Security(get_current_user)):
             result[label] += 1
 
     return {"ok": True, "total": len(alerts), "severity_summary": result}
-
-
-@router.post("/alerts/send-telegram")             # ✅ moved up
-async def send_telegram(
-    body: TelegramAlertRequest,
-    current_user: dict = Security(get_current_user),
-):
-    collection = get_collection()
-    if collection is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
-
-    alert = collection.find_one({"id": body.alert_id}, {"_id": 0})
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
-
-    user = await get_user_by_email(current_user.get("sub", ""))
-    chat_id = user.get("telegram_id") if user else None
-    if not chat_id:
-        raise HTTPException(status_code=400, detail="No Telegram chat is configured for this account")
-
-    text = (
-        f"Alert: {alert.get('signature', 'Unknown alert')} | "
-        f"{alert.get('src_ip', 'unknown')} -> {alert.get('dest_ip', 'unknown')} | "
-        f"severity {alert.get('severity_label', 'unknown')}"
-    )
-    if not await send_telegram_message(chat_id, text):
-        raise HTTPException(status_code=502, detail="Telegram delivery failed")
-    return {"ok": True}
 
 
 @router.post("/alerts/refresh-all-locations")     # ✅ moved up

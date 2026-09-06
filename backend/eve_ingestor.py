@@ -6,7 +6,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-EVE_PATH = os.getenv("ALERTS_FILE_PATH", "/opt/homebrew/var/log/suricata/eve.json")
+# SURICATA_EVE_PATH is the current variable; ALERTS_FILE_PATH is the legacy name
+# kept as a fallback so existing deployments keep working.
+EVE_PATH = os.getenv("SURICATA_EVE_PATH") or os.getenv(
+    "ALERTS_FILE_PATH", "/opt/homebrew/var/log/suricata/eve.json"
+)
 API_URL = os.getenv(
     "API_URL",
     "http://localhost:8000/api/ingest/alerts"
@@ -15,13 +19,14 @@ INGEST_API_KEY = os.getenv("INGEST_API_KEY")
 
 SEVERITY_THRESHOLD = int(os.getenv("SEVERITY_THRESHOLD", "2"))
 
-# Suricata: lower number = higher severity
-SEVERITY_LABELS = {
-    1: "high",
-    2: "medium",
-    3: "low",
-    4: "info"
-}
+# Shared IntruSight severity contract (also enforced by the backend AlertIn model):
+#   1 = high, 2 = medium, 3 = low
+SEVERITY_LABELS = {1: "high", 2: "medium", 3: "low"}
+
+# Suricata's native scale has a fourth, informational level that the shared model
+# does not carry. Native 4 is the least severe value Suricata emits, so it maps
+# onto the shared scale's least severe level rather than being dropped or rejected.
+SURICATA_TO_SHARED_SEVERITY = {1: 1, 2: 2, 3: 3, 4: 3}
 
 # Optional fallback if severity is missing
 CATEGORY_TO_SEVERITY = {
@@ -52,22 +57,56 @@ def compute_severity(event: dict) -> int:
     return CATEGORY_TO_SEVERITY.get(category, 3)
 
 
+def to_shared_severity(native_severity: int) -> int:
+    """Map a Suricata-native severity (1-4) onto the shared 1-3 contract."""
+    return SURICATA_TO_SHARED_SEVERITY.get(native_severity, 3)
+
+
 def build_payload(event: dict) -> dict:
+    """
+    Map one Suricata EVE alert event onto the shared contract.
+
+    Suricata's role in IntruSight is signature-based detection: every record it
+    contributes is a rule match, carrying the rule's signature text, its
+    signature_id and the Suricata category. That is why `event_kind` is always
+    "detection" here — unlike Zeek and Kismet, Suricata is asserting that
+    traffic matched a known pattern.
+    """
     alert = event.get("alert", {})
-    severity = compute_severity(event)
+    severity = to_shared_severity(compute_severity(event))
+    src_ip = event.get("src_ip")
+    dest_ip = event.get("dest_ip")
+
+    # Fields Suricata reports that have no shared column. Kept engine-native
+    # rather than flattened into the common schema.
+    context = {
+        k: v for k, v in {
+            "rule_rev": alert.get("rev"),
+            "rule_gid": alert.get("gid"),
+            "app_proto": event.get("app_proto"),
+            "flow_id": event.get("flow_id"),
+            "interface": event.get("in_iface"),
+            "native_severity": compute_severity(event),
+        }.items() if v is not None
+    }
 
     return {
         "timestamp": event.get("timestamp"),
-        "src_ip": event.get("src_ip"),
+        "src_ip": src_ip,
         "src_port": event.get("src_port", 0),
-        "dest_ip": event.get("dest_ip"),
+        "dest_ip": dest_ip,
         "dest_port": event.get("dest_port", 0),
         "proto": str(event.get("proto", "TCP")).upper(),
         "signature": alert.get("signature", "Unknown Suricata Alert"),
         "severity": severity,
         "category": alert.get("category", "Unknown"),
         "sid": alert.get("signature_id", 0),
-        "source_nids": "SURICATA"
+        "source_nids": "SURICATA",
+        "event_kind": "detection",
+        "source_asset": src_ip,
+        "destination_asset": dest_ip,
+        "asset_kind": "ip",
+        "engine_context": context or None,
     }
 
 
@@ -119,7 +158,7 @@ def process_line(line: str) -> str:
             f"{payload['src_ip']}:{payload['src_port']} -> "
             f"{payload['dest_ip']}:{payload['dest_port']}"
         )
-        return "telegram"
+        return "notable"
 
     print(
         f"\n✔️ {payload['signature']} ({severity_label}) | "
@@ -135,7 +174,7 @@ def main():
     sent = 0
     skipped = 0
     failed = 0
-    telegram_alerts = 0
+    notable_alerts = 0
 
     print("Ingestor Mode: SURICATA")
     print(f"Watching file: {EVE_PATH}")
@@ -159,9 +198,9 @@ def main():
 
             result = process_line(line.strip())
 
-            if result == "telegram":
+            if result == "notable":
                 sent += 1
-                telegram_alerts += 1
+                notable_alerts += 1
             elif result == "sent":
                 sent += 1
             elif result == "failed":
@@ -170,7 +209,7 @@ def main():
                 skipped += 1
 
             print(
-                f"Total Sent: {sent} | Telegram: {telegram_alerts} | Failed: {failed} | Skipped: {skipped}   ",
+                f"Total Sent: {sent} | Notable: {notable_alerts} | Failed: {failed} | Skipped: {skipped}   ",
                 end="\r"
             )
 

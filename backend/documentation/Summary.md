@@ -1,5 +1,12 @@
 # Implementation Summary
 
+> **Historical working note.** This file records the state of the project at an
+> earlier milestone. Test counts, coverage figures, file paths, and readiness
+> statements in it are not current and are not maintained. For the current
+> position see [`README.md`](../../README.md) and
+> [`SECURITY_AUDIT.md`](../../SECURITY_AUDIT.md), which are authoritative where
+> they conflict with this file.
+
 ## Overview
 This document outlines the API enhancements made to the authentication and user management system, including Swagger UI integration with HTTPBearer authentication.
 

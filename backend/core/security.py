@@ -5,11 +5,12 @@ from secrets import compare_digest
 import bcrypt
 from bson import ObjectId
 from jose import JWTError, jwt
-from dotenv import load_dotenv
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-load_dotenv()
+from config import load_backend_env
+
+load_backend_env()
 
 security = HTTPBearer()
 
@@ -143,7 +144,12 @@ async def get_current_user_for_password_change(
 
 def verify_ingest_api_key(provided_key: str | None) -> None:
     expected_key = os.getenv("INGEST_API_KEY", "")
-    if len(expected_key) < 24:
+    known_placeholders = {
+        "change-me",
+        "your-ingest-api-key",
+        "<generate-a-separate-ingestion-key>",
+    }
+    if len(expected_key) < 24 or expected_key.lower() in known_placeholders:
         raise HTTPException(status_code=503, detail="Alert ingestion is not configured")
     if not provided_key or not compare_digest(provided_key, expected_key):
         raise HTTPException(status_code=401, detail="Invalid ingestion credentials")

@@ -1,0 +1,26 @@
+[
+ {
+  "kismet.alert.header": "DEAUTHFLOOD",
+  "kismet.alert.class": "Denial of Service",
+  "kismet.alert.severity": 17,
+  "kismet.alert.timestamp": 1788686252,
+  "kismet.alert.source_mac": "A2:71:0E:33:44:55",
+  "kismet.alert.dest_mac": "FF:FF:FF:FF:FF:FF",
+  "kismet.alert.bssid": "C4:12:F5:2A:9B:01",
+  "kismet.alert.channel": "6",
+  "kismet.alert.hash": 881204,
+  "kismet.alert.text": "Deauthenticate/Disassociate flood detected on BSSID C4:12:F5:2A:9B:01"
+ },
+ {
+  "kismet.alert.header": "APSPOOF",
+  "kismet.alert.class": "Spoofing",
+  "kismet.alert.severity": 12,
+  "kismet.alert.timestamp": 1788686256,
+  "kismet.alert.source_mac": "C4:12:F5:2A:9B:02",
+  "kismet.alert.dest_mac": "FF:FF:FF:FF:FF:FF",
+  "kismet.alert.ssid": "IntruSight-Lab",
+  "kismet.alert.channel": "11",
+  "kismet.alert.hash": 881205,
+  "kismet.alert.text": "SSID IntruSight-Lab advertised by unexpected BSSID C4:12:F5:2A:9B:02"
+ }
+]

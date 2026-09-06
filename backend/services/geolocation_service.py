@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import geoip2.database
 from typing import Optional, Dict
@@ -6,6 +7,23 @@ from typing import Optional, Dict
 GEOIP_DB_PATH = os.getenv("GEOIP_DB_PATH", "geoip/GeoLite2-City.mmdb")
 
 _reader = None
+
+
+def is_ip_address(value) -> bool:
+    """
+    Return True only for literal IPv4/IPv6 addresses.
+
+    Kismet alerts reuse the shared ``src_ip``/``dest_ip`` fields to carry 802.11
+    hardware (MAC) addresses, so geolocation must reject non-IP values explicitly
+    instead of relying on the GeoIP reader to raise on them.
+    """
+    if not isinstance(value, str):
+        return False
+    try:
+        ipaddress.ip_address(value.strip())
+    except ValueError:
+        return False
+    return True
 
 
 def get_geoip_reader():
@@ -26,10 +44,13 @@ def get_location_from_ip(ip_address: str) -> Optional[Dict]:
     Lookup geolocation data for an IP address
     
     Args:
-        ip_address: IPv4 or IPv6 address to lookup
-        
+        ip_address: IPv4 or IPv6 address to lookup. Values that are not IP
+            literals (for example the MAC addresses Kismet alerts place in
+            src_ip/dest_ip) are rejected before any lookup is attempted.
+
     Returns:
-        Dictionary with location data or None if lookup fails
+        Dictionary with location data or None if the value is not an IP address
+        or the lookup fails
         {
             "country": "US",
             "country_name": "United States",
@@ -41,6 +62,9 @@ def get_location_from_ip(ip_address: str) -> Optional[Dict]:
             "isp": "ISP Name" (if available)
         }
     """
+    if not is_ip_address(ip_address):
+        return None
+
     reader = get_geoip_reader()
     if reader is None:
         return None

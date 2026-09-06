@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-EVE_PATH = os.getenv("ALERTS_FILE_PATH", "/opt/homebrew/var/log/suricata/eve.json")
+EVE_PATH = os.getenv("SURICATA_EVE_PATH") or os.getenv(
+    "ALERTS_FILE_PATH", "/opt/homebrew/var/log/suricata/eve.json"
+)
 
 SURICATA_ALERTS = [
     {
