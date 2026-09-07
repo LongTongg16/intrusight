@@ -1,0 +1,12 @@
+# Netlify SPA fallback.
+#
+# IntruSight is a client-side-routed React application: only index.html exists
+# as a real file, and react-router resolves /login, /alerts, /admin/users and
+# the rest in the browser. Without this rule Netlify looks for a matching file
+# on disk, finds none, and returns its own 404 page for any direct navigation
+# or refresh on a nested route — and for the hard redirect the API client
+# performs on a 401 (window.location.href = "/login").
+#
+# Status 200 (a rewrite, not a 302) keeps the requested URL in the address bar
+# so react-router sees the original path.
+/*    /index.html   200

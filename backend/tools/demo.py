@@ -210,11 +210,30 @@ def _collection():
     an operator tool that runs beside the backend, not something exposed to a
     browser.
     """
+    from pymongo.errors import PyMongoError
     from services.alert_service import get_collection
 
     collection = get_collection()
     if collection is None:
-        raise SystemExit("MongoDB is not reachable (check MONGODB_URL in backend/.env)")
+        raise SystemExit(
+            "\nMONGODB_URL is not configured.\n"
+            "  Set it in backend/.env and try again.\n"
+        )
+
+    # get_collection() only builds a client; PyMongo connects lazily, so an
+    # unreachable server does not surface until the first real operation. Probe
+    # once here so `status` and `clear` report the same clear message that
+    # `load` gives for a bad credential, instead of a driver traceback.
+    try:
+        collection.database.client.admin.command("ping")
+    except PyMongoError as exc:
+        raise SystemExit(
+            "\nMongoDB is not reachable.\n"
+            "  Start it (see backend/documentation/TESTING.md for the compose file)\n"
+            "  and check MONGODB_URL in backend/.env.\n"
+            f"  Driver reported: {type(exc).__name__}\n"
+        ) from exc
+
     return collection
 
 
