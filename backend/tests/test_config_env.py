@@ -230,7 +230,15 @@ class TestDemoLoaderCredential:
 
         class _Response:
             status_code = 201
-            text = ""
+
+            @staticmethod
+            def json():
+                return {
+                    "ok": True,
+                    "id": "fixture-id",
+                    "created": True,
+                    "demo_fixture_id": "suricata-001",
+                }
 
         def fake_post(url, json=None, headers=None, timeout=None):
             captured["headers"] = headers
@@ -238,27 +246,20 @@ class TestDemoLoaderCredential:
 
         monkeypatch.setattr(demo.requests, "post", fake_post)
 
-        demo._post({"signature": "x", "event_kind": "detection"}, TEST_KEY)
+        target = demo.ApiTarget("local", demo.LOCAL_API_BASE, TEST_KEY, is_local=True)
+        demo._post_record(target, demo.demo_records("suricata")[0])
 
         assert captured["headers"]["X-Ingest-API-Key"] == TEST_KEY
 
-    def test_loader_tags_every_record_with_demonstration_provenance(self, demo, monkeypatch):
-        """Cleanup relies on this tag, so it must be applied on the way out."""
-        captured = {}
-
-        class _Response:
-            status_code = 201
-            text = ""
-
-        def fake_post(url, json=None, headers=None, timeout=None):
-            captured["body"] = json
-            return _Response()
-
-        monkeypatch.setattr(demo.requests, "post", fake_post)
-
-        demo._post({"signature": "x", "event_kind": "detection"}, TEST_KEY)
-
-        assert captured["body"]["engine_context"]["provenance"] == demo.PROVENANCE
+    def test_loader_tags_every_record_with_demo_ownership(self, demo):
+        """Cleanup and idempotency rely on both ownership fields."""
+        records = demo.demo_records()
+        assert len(records) == demo.EXPECTED_RECORDS
+        assert len({record.fixture_id for record in records}) == len(records)
+        for record in records:
+            context = record.payload["engine_context"]
+            assert context["provenance"] == demo.PROVENANCE
+            assert context["demo_fixture_id"] == record.fixture_id
 
     def test_load_exits_before_sending_anything_when_no_key_is_configured(
         self, demo, env_file, monkeypatch
@@ -271,34 +272,31 @@ class TestDemoLoaderCredential:
         monkeypatch.setattr(demo.requests, "post",
                             lambda *a, **k: sent.append(1))
 
-        with pytest.raises(SystemExit) as exc:
-            demo.cmd_load(type("Args", (), {"engine": None})())
+        with pytest.raises(demo.OperatorError) as exc:
+            demo.prompt_target("local")
 
         assert "INGEST_API_KEY is not set" in str(exc.value)
         assert sent == [], "no request should be attempted without a usable key"
 
-    def test_rejected_credentials_stop_after_the_first_failure(self, demo, env_file):
+    def test_rejected_credentials_stop_after_the_first_failure(
+        self, demo, env_file, monkeypatch
+    ):
         """
         The reported symptom was 21 identical 401 lines. One rejection is enough
         to know the credential is wrong.
         """
-        env_file(INGEST_API_KEY=TEST_KEY)
         attempts = []
 
         class _Unauthorized:
             status_code = 401
-            text = '{"detail":"Invalid ingestion credentials"}'
 
-        def fake_post(url, json=None, headers=None, timeout=None):
+        def fake_get(url, json=None, headers=None, timeout=None):
             attempts.append(1)
             return _Unauthorized()
 
-        demo.requests.post = fake_post
-        try:
-            exit_code = demo.cmd_load(type("Args", (), {"engine": "suricata"})())
-        finally:
-            import requests as real_requests
-            demo.requests.post = real_requests.post
+        target = demo.ApiTarget("local", demo.LOCAL_API_BASE, TEST_KEY, is_local=True)
+        monkeypatch.setattr(demo.requests, "get", fake_get)
+        with pytest.raises(demo.OperatorError, match="rejected INGEST_API_KEY"):
+            demo.cmd_load(target, "suricata")
 
-        assert exit_code == 1
         assert len(attempts) == 1, "should stop on the first credential rejection"

@@ -12,6 +12,7 @@ from routes import logs
 from routes import maintenance
 from routes import reports
 from routes import traffic
+from routes import demo
 
 load_backend_env()
 
@@ -39,6 +40,7 @@ app.include_router(alerts.router)
 app.include_router(logs.router)
 app.include_router(reports.router)
 app.include_router(traffic.router)
+app.include_router(demo.router)
 
 
 @app.get("/")

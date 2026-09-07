@@ -61,6 +61,15 @@ class IngestKeyError(RuntimeError):
     """Raised when no usable ingestion key is configured."""
 
 
+def validate_ingest_api_key(key: str) -> str:
+    """Return a usable ingestion key, or reject it without echoing its value."""
+    if not key:
+        raise IngestKeyError("INGEST_API_KEY is not set")
+    if len(key) < INGEST_KEY_MIN_LENGTH or key.lower() in INGEST_KEY_PLACEHOLDERS:
+        raise IngestKeyError("INGEST_API_KEY is a placeholder or too short")
+    return key
+
+
 def resolve_ingest_api_key() -> str:
     """
     Return the ingestion key a client should present, or raise with guidance.
@@ -73,18 +82,17 @@ def resolve_ingest_api_key() -> str:
     load_backend_env()
     key = os.getenv("INGEST_API_KEY", "")
 
-    if not key:
+    try:
+        return validate_ingest_api_key(key)
+    except IngestKeyError as exc:
+        if key:
+            raise IngestKeyError(
+                f"{exc}; the API will reject it.\n"
+                f"  It must be at least {INGEST_KEY_MIN_LENGTH} characters and not an example value.\n"
+                "  Generate one with:  openssl rand -hex 32"
+            ) from exc
         raise IngestKeyError(
             "INGEST_API_KEY is not set.\n"
             f"  Add it to {BACKEND_ENV_FILE} (or export it) and try again.\n"
             "  Generate one with:  openssl rand -hex 32"
-        )
-
-    if len(key) < INGEST_KEY_MIN_LENGTH or key.lower() in INGEST_KEY_PLACEHOLDERS:
-        raise IngestKeyError(
-            "INGEST_API_KEY is a placeholder or too short; the API will reject it.\n"
-            f"  It must be at least {INGEST_KEY_MIN_LENGTH} characters and not an example value.\n"
-            "  Generate one with:  openssl rand -hex 32"
-        )
-
-    return key
+        ) from exc

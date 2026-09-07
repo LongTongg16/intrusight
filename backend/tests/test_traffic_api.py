@@ -164,3 +164,65 @@ class TestTrafficLogs:
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
+
+    def test_kismet_wireless_records_are_excluded_from_flow_rows(
+        self, client, analyst_token
+    ):
+        kismet = {
+            "timestamp": "2026-09-06T09:00:00Z",
+            "src_ip": None,
+            "dest_ip": None,
+            "source_asset": "AA:BB:CC:DD:EE:FF",
+            "destination_asset": None,
+            "asset_kind": "mac",
+            "event_kind": "observation",
+            "observation_type": "wireless_ap",
+            "source_nids": "KISMET",
+            "signature": "Access point observed",
+        }
+        cursor = MagicMock()
+        cursor.sort.return_value.limit.return_value = [kismet]
+        collection = MagicMock()
+        collection.find.return_value = cursor
+
+        with patch("routes.traffic.get_collection", return_value=collection):
+            response = client.get(
+                "/api/traffic",
+                headers={"Authorization": f"Bearer {analyst_token}"},
+            )
+
+        assert response.status_code == 200
+        triggered = [row for row in response.json()["items"] if row["triggered"]]
+        assert triggered == []
+
+    def test_zeek_network_observations_remain_flow_rows(self, client, analyst_token):
+        zeek = {
+            "timestamp": "2026-09-06T09:00:00Z",
+            "src_ip": "10.10.0.15",
+            "dest_ip": "10.10.0.53",
+            "src_port": 51521,
+            "dest_port": 53,
+            "asset_kind": "ip",
+            "event_kind": "observation",
+            "observation_type": "dns_query",
+            "source_nids": "ZEEK",
+            "signature": "DNS query for example.test",
+            "proto": "UDP",
+        }
+        cursor = MagicMock()
+        cursor.sort.return_value.limit.return_value = [zeek]
+        collection = MagicMock()
+        collection.find.return_value = cursor
+
+        with patch("routes.traffic.get_collection", return_value=collection):
+            response = client.get(
+                "/api/traffic",
+                headers={"Authorization": f"Bearer {analyst_token}"},
+            )
+
+        assert response.status_code == 200
+        triggered = [row for row in response.json()["items"] if row["triggered"]]
+        assert len(triggered) == 1
+        assert triggered[0]["ids"] == "ZEEK"
+        assert triggered[0]["src"] == "10.10.0.15"
+        assert triggered[0]["dst"] == "10.10.0.53"

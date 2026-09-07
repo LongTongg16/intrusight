@@ -139,12 +139,13 @@ connection `uid` of the connections Suricata alerted on. Kismet's records are
 deliberately *not* correlated with the wired traffic, because the lab has no evidence
 linking them.
 
-**Provenance is explicit.** Every loaded record is tagged
-`engine_context.provenance = "replayed-fixture"`, shown as a banner in the analyst detail
-view, and `clear` removes exactly those records and nothing else. These fixtures are
-**not** live captured attacks, not production telemetry, and not proof that four real
-engines simultaneously detected the same activity. Simulator output is likewise
-distinguishable and is synthetic lab data.
+**Provenance and ownership are explicit.** Every loaded record is tagged
+`engine_context.provenance = "replayed-fixture"` and given one stable
+`engine_context.demo_fixture_id`. The provenance is shown as a banner in the analyst
+detail view; the stable IDs make repeat loads idempotent and let `clear` remove only the
+owned corpus. These fixtures are **not** live captured attacks, not production telemetry,
+and not proof that four real engines simultaneously detected the same activity. Simulator
+output is likewise distinguishable and is synthetic lab data.
 
 See [`demo/README.md`](demo/README.md) for the full scenario and provenance table, and
 [`demo/DEMO_GUIDE.md`](demo/DEMO_GUIDE.md) for a five-minute walkthrough.
@@ -224,12 +225,18 @@ docker compose -f backend/docker-compose.test.yml up -d
 mongosh "mongodb://localhost:27017/admin" --quiet --eval 'db.runCommand({ ping: 1 }).ok'   # → 1
 ```
 
-For a hosted deployment, put the private connection URI in `backend/.env` — never in a
-tracked file. Create the first administrator interactively (hidden password prompt):
+Create the first administrator interactively. The tool asks you to choose the local
+configuration or securely enter a custom/production URI, shows only a sanitized
+destination, and requires confirmation before inserting:
 
 ```bash
 cd backend && python create_admin.py
 ```
+
+Custom credentials are held only in memory and are never saved by the tool. Never put
+an Atlas URI in a command-line argument, tracked file, screenshot, or chat; rotate any
+credential that may have been exposed. See the [backend instructions](backend/README.md#create-the-first-administrator)
+for the local and Atlas workflows.
 
 ### Frontend
 
@@ -280,22 +287,54 @@ MongoDB URI. The GeoLite2 database is intentionally not committed — download a
 `GeoLite2-City.mmdb` to `backend/geoip/` or set `GEOIP_DB_PATH`. Geolocation is
 approximate and must not be used to identify a household or individual.
 
-## Demo workflow
+## Operator workflow
 
-With the backend, MongoDB, and `INGEST_API_KEY` configured:
+Create an administrator from `backend/`:
 
 ```bash
-python3 backend/tools/demo.py load     # replay all four engines through the real ingestors
-python3 backend/tools/demo.py status   # what is currently loaded
-python3 backend/tools/demo.py clear    # remove only what the loader added
+cd backend
+python create_admin.py                 # choose Local or Custom / production
+# or select explicitly:
+python create_admin.py --local
+python create_admin.py --custom
 ```
 
-`load --engine zeek` replays a single engine. The loader never writes to MongoDB directly
-and never generates records.
+Local mode reads `MONGODB_URL` and `DATABASE_NAME` from the process environment and then
+`backend/.env`. Custom mode prompts invisibly for the MongoDB URI, defaults the database
+name to `siemless_db`, displays only a sanitized host/database summary, and requires
+confirmation. It never saves the URI or accepts it as a command-line argument.
+
+Load, inspect, or clear the demonstration from the repository root:
+
+```bash
+python3 backend/tools/demo.py load      # choose Local or Production / custom
+python3 backend/tools/demo.py status
+python3 backend/tools/demo.py clear
+
+# optional explicit mode (flags follow the subcommand)
+python3 backend/tools/demo.py load --local
+python3 backend/tools/demo.py load --custom
+python3 backend/tools/demo.py load --local --engine zeek
+```
+
+Local mode uses `http://localhost:8000` and the normal `INGEST_API_KEY` resolution order:
+process environment, then `backend/.env`, then unset. Custom mode prompts for the API base
+(default `https://intrusight.onrender.com`) and reads the ingestion key with a hidden
+prompt; neither value is saved. Existing process-level `DEMO_API_BASE` and
+`INGEST_API_KEY` overrides remain supported.
+
+Every command checks `/health` and waits up to 90 seconds for a remote backend and its
+database to become ready. `status` and `clear` use narrowly scoped, ingestion-key-
+authenticated API endpoints, so Atlas credentials are not needed. `clear` first reports
+the actual managed-record count and asks for confirmation. The loader never writes to
+MongoDB directly, never generates records, and a repeated load updates the same 21 stable
+fixture identities instead of inserting duplicates. If status finds records from the
+older provenance-only loader (or duplicate fixture identities), load stops before posting
+and directs the operator to clear that owned legacy corpus first.
 
 ## Testing
 
-Backend — the suite currently collects **287 tests** (API routes, auth, ingestors, engine
+Backend — the suite currently collects **338 tests** (API routes, auth, ingestors, engine
 role classification, config validation, and security-remediation assertions):
 
 ```bash

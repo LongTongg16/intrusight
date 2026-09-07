@@ -17,6 +17,13 @@ from services.alert_service import get_collection
 
 router = APIRouter(prefix="/api", tags=["Traffic"])
 
+NETWORK_OBSERVATION_TYPES = {
+    "connection",
+    "dns_query",
+    "http_request",
+    "tls_handshake",
+}
+
 # ---------------------------------------------------------------------------
 # Realistic clean (non-triggered) background flows
 # These represent normal everyday traffic that never fired an IDS rule.
@@ -74,6 +81,17 @@ def _seeded_clean_flows():
     ]
 
 
+def _is_flow_record(record: dict) -> bool:
+    """Return whether a stored record represents traffic with IP endpoints."""
+    if record.get("asset_kind") == "mac":
+        return False
+    if not record.get("src_ip") or not record.get("dest_ip"):
+        return False
+    if record.get("event_kind", "detection") == "observation":
+        return record.get("observation_type") in NETWORK_OBSERVATION_TYPES
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -91,6 +109,8 @@ def get_traffic_logs(current_user: dict = Security(get_current_user)):
     if col is not None:
         try:
             for alert in col.find({}, {"_id": 0}).sort("timestamp", -1).limit(300):
+                if not _is_flow_record(alert):
+                    continue
                 triggered_flows.append({
                     "ts":        alert.get("timestamp", ""),
                     "src":       alert.get("src_ip", "—"),

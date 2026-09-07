@@ -27,17 +27,24 @@ A record therefore carries `event_kind`:
 ## Run it
 
 ```bash
-# 1. backend + MongoDB running, INGEST_API_KEY set in backend/.env
+# Each command explicitly asks for Local or Production / custom.
 python3 backend/tools/demo.py load
+python3 backend/tools/demo.py status
 
-# 2. open the analyst dashboard and filter by engine
-
-# 3. when finished
+# When finished; reports the exact count and requires confirmation.
 python3 backend/tools/demo.py clear
 ```
 
-`status` shows what is currently loaded. `load --engine zeek` replays a single
-engine.
+Local mode uses `http://localhost:8000` and the ingestion key from the process
+environment or `backend/.env`. Custom mode defaults to the deployed Render API
+and securely prompts for the ingestion key without printing or saving it.
+`load --local`, `load --custom`, and `load --local --engine zeek` can select a
+mode or one engine directly. Every command waits for API and MongoDB readiness;
+remote targets get a 90-second cold-start window.
+
+If `status` finds records created by the older provenance-only loader, `load`
+stops without posting and asks you to run the scoped `clear` first. This avoids
+mixing the legacy corpus with the 21 stable identities.
 
 The loader calls each engine's real ingestor (`eve_ingestor.build_payload`,
 `snort_ingestor.build_payload`, `zeek_ingestor.build_payload`,
@@ -58,10 +65,12 @@ not live capture, and it is not sampled from a third-party dataset.
 | Test fixture | `backend/tests/` | test scope only |
 | Illustrative UI sample | public landing page | labelled "Illustrative" in the UI |
 
-Every record the loader creates is tagged `provenance: "replayed-fixture"`. The
-analyst detail view shows a banner saying so, and `demo.py clear` deletes
-exactly those records and nothing else — data from a live sensor is never
-touched.
+Every record the loader creates is tagged `provenance: "replayed-fixture"` and
+given a stable `demo_fixture_id`. The analyst detail view shows a provenance
+banner, repeated loads upsert those exact 21 identities, and `demo.py clear`
+deletes only the managed corpus — data from a live sensor is never touched.
+Load, status, and clear all use authenticated backend APIs; the operator never
+needs an Atlas URI for demo operations.
 
 The fixtures are hand-authored to match each engine's documented output format
 (Suricata EVE JSON, Snort JSON alerts, Zeek JSON logs, Kismet REST payloads),

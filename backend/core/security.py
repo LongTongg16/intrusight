@@ -2,31 +2,17 @@ import os
 from datetime import datetime, timedelta, timezone
 from secrets import compare_digest
 
-import bcrypt
 from bson import ObjectId
 from jose import JWTError, jwt
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from config import load_backend_env
+from core.password_security import hash_password, verify_password
 
 load_backend_env()
 
 security = HTTPBearer()
-
-
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    try:
-        return bcrypt.checkpw(
-            plain_password.encode("utf-8"),
-            hashed_password.encode("utf-8"),
-        )
-    except (ValueError, TypeError):
-        return False
 
 
 def _load_secret_key() -> str:

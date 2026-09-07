@@ -176,7 +176,7 @@ class TestZeekRole:
         for record in records:
             payload = zeek_ingestor.build_payload(record)
             if payload["event_kind"] == "observation":
-                assert payload["severity"] == 3
+                assert payload["severity"] is None
                 assert payload["category"] == "Network context"
 
     def test_notices_are_detections(self, records):
@@ -258,7 +258,9 @@ class TestKismetRole:
             payload = kismet_ingestor.build_device_payload(device)
             assert payload["event_kind"] == "observation"
             assert payload["observation_type"] in ("wireless_ap", "wireless_client")
-            assert payload["severity"] == 3
+            assert payload["severity"] is None
+            assert payload["destination_asset"] is None
+            assert payload["engine_context"]["sensor"] == "KISMET-LAB-01"
 
     def test_wids_alerts_are_detections(self, alerts):
         for alert in alerts:
@@ -387,4 +389,4 @@ class TestDemoLoader:
         for _role, loader in demo.ENGINES.values():
             for record in loader():
                 if record["event_kind"] == "observation":
-                    assert record["severity"] == 3
+                    assert record["severity"] is None

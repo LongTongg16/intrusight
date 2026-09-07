@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Security
+from fastapi import APIRouter, Header, HTTPException, Response, Security
 from core.security import get_current_user, verify_ingest_api_key
+from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -10,6 +11,12 @@ from database import database_is_reachable
 from services.alert_service import get_collection, SEVERITY_LABELS, ALLOWED_STATUS
 from services.user_service import get_user_by_email
 from services.geolocation_service import get_location_from_ip
+from demo_contract import (
+    ALL_FIXTURE_IDS,
+    FIXTURE_ENGINE,
+    PROVENANCE,
+    fixture_object_id,
+)
 
 # The historical Telegram bot integration was removed: the bot identity behind it
 # is no longer trusted. Alert ingestion has no outbound messaging side effect and
@@ -44,7 +51,9 @@ class AlertIn(BaseModel):
     """
     timestamp: str
     signature: str
-    severity: int = Field(ge=1, le=3)
+    # Detections require a severity. Observations explicitly carry null: using
+    # 3 as an "informational" placeholder made ungraded context look low-risk.
+    severity: Optional[int] = Field(ge=1, le=3)
 
     # Legacy endpoint fields. Optional since Kismet has no IP to report; still
     # populated for every IP-based engine.
@@ -88,7 +97,7 @@ class AlertIn(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _require_an_endpoint(self):
+    def _validate_record_semantics(self):
         """
         A record must identify its endpoints somehow — either the legacy IP
         fields or the asset fields. Rejecting the empty case here keeps the
@@ -96,8 +105,31 @@ class AlertIn(BaseModel):
         """
         if not (self.src_ip or self.source_asset):
             raise ValueError("either src_ip or source_asset is required")
-        if not (self.dest_ip or self.destination_asset):
+        if self.event_kind == "detection" and not (
+            self.dest_ip or self.destination_asset
+        ):
             raise ValueError("either dest_ip or destination_asset is required")
+
+        if self.event_kind == "observation":
+            if self.severity is not None:
+                raise ValueError("observations must not carry a severity")
+            if self.sid is not None:
+                raise ValueError("observations must not carry a signature ID")
+            if not self.observation_type:
+                raise ValueError("observations require an observation_type")
+        elif self.severity is None:
+            raise ValueError("detections require a severity")
+
+        context = self.engine_context or {}
+        provenance = context.get("provenance")
+        fixture_id = context.get("demo_fixture_id")
+        if provenance == PROVENANCE:
+            if fixture_id not in ALL_FIXTURE_IDS:
+                raise ValueError("replayed fixtures require a known demo_fixture_id")
+            if self.source_nids != FIXTURE_ENGINE[fixture_id]:
+                raise ValueError("demo_fixture_id does not match source_nids")
+        elif fixture_id is not None:
+            raise ValueError("demo_fixture_id requires replayed-fixture provenance")
         return self
 
 
@@ -133,6 +165,7 @@ async def health():
 @router.post("/ingest/alerts", status_code=201)
 async def ingest_alert(
     alert: AlertIn,
+    response: Response,
     ingest_api_key: str | None = Header(default=None, alias="X-Ingest-API-Key"),
 ):
     verify_ingest_api_key(ingest_api_key)
@@ -141,10 +174,9 @@ async def ingest_alert(
         raise HTTPException(status_code=503, detail="Database unavailable")
 
     doc = alert.model_dump()
-    doc["severity_label"] = SEVERITY_LABELS.get(doc["severity"], "unknown")
-    doc["status"] = "new"
-    doc["notes"] = []
-    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["severity_label"] = (
+        SEVERITY_LABELS.get(doc["severity"]) if doc["severity"] is not None else None
+    )
 
     # Reconcile the legacy IP fields with the canonical asset fields so a
     # document is complete however the sender chose to describe its endpoints.
@@ -171,11 +203,56 @@ async def ingest_alert(
         if src_location:
             doc["src_location"] = src_location
 
+    context = doc.get("engine_context") or {}
+    fixture_id = context.get("demo_fixture_id")
+    if context.get("provenance") == PROVENANCE and fixture_id:
+        object_id = fixture_object_id(fixture_id)
+        alert_id = str(object_id)
+        identity = {
+            "_id": object_id,
+            "engine_context.provenance": PROVENANCE,
+            "engine_context.demo_fixture_id": fixture_id,
+        }
+        try:
+            result = collection.update_one(
+                identity,
+                {
+                    "$set": doc,
+                    "$setOnInsert": {
+                        "id": alert_id,
+                        "status": "new",
+                        "notes": [],
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                },
+                upsert=True,
+            )
+        except DuplicateKeyError as exc:
+            # The deterministic ObjectId is already occupied by a document
+            # that does not carry this exact demo identity. Never overwrite it.
+            raise HTTPException(
+                status_code=409,
+                detail="Demo fixture identity conflicts with an existing record",
+            ) from exc
+        except PyMongoError as exc:
+            raise HTTPException(status_code=503, detail="Database unavailable") from exc
+        created = result.upserted_id is not None
+        response.status_code = 201 if created else 200
+        return {
+            "ok": True,
+            "id": alert_id,
+            "created": created,
+            "demo_fixture_id": fixture_id,
+        }
+
+    doc["status"] = "new"
+    doc["notes"] = []
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
     result = collection.insert_one(doc)
     alert_id = str(result.inserted_id)
     collection.update_one({"_id": result.inserted_id}, {"$set": {"id": alert_id}})
 
-    return {"ok": True, "id": alert_id}
+    return {"ok": True, "id": alert_id, "created": True}
 
 
 @router.get("/alerts")

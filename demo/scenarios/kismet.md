@@ -37,13 +37,15 @@ Now:
 src_ip          : null            <- Kismet observes no IP
 dest_ip         : null
 source_asset    : C4:12:F5:2A:9B:01
-destination_asset: KISMET-LAB-01
+destination_asset: null            <- a sighting has no counterparty
 asset_kind      : "mac"
 ```
 
 Geolocation is skipped entirely when `asset_kind` is `mac`, rather than relying
-on the lookup to reject a non-IP string. The frontend reads the asset fields, so
-these records display their MACs correctly instead of rendering "—".
+on the lookup to reject a non-IP string. The observing sensor name remains in
+`engine_context.sensor`; it is not fabricated as a destination endpoint. The
+frontend reads the asset fields, so these records display their source MACs
+correctly.
 
 `tests/test_engine_roles.py::TestKismetRole::test_mac_addresses_never_enter_ip_fields`
 guards this.

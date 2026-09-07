@@ -109,6 +109,7 @@ def _wireless_context(record: dict) -> dict:
             "packets": record.get("kismet.device.base.packets.total"),
             "first_seen": record.get("kismet.device.base.first_time"),
             "last_seen": record.get("kismet.device.base.last_time"),
+            "sensor": record.get("kismet.device.base.sensor"),
         }.items() if v is not None
     }
 
@@ -178,17 +179,17 @@ def build_device_payload(device: dict) -> dict:
         "dest_port": 0,
         "proto": "IEEE802.11",
         "signature": summary,
-        # Observations carry the informational level; they assert presence, not
-        # severity.
-        "severity": 3,
+        # A sighting asserts presence, not severity.
+        "severity": None,
         "category": "Wireless visibility",
         "sid": None,
         "source_nids": "KISMET",
         "event_kind": "observation",
         "observation_type": "wireless_ap" if is_ap else "wireless_client",
         "source_asset": mac,
-        # A sighting has no counterparty; the observing sensor is the receiver.
-        "destination_asset": device.get("kismet.device.base.sensor") or "KISMET-SENSOR",
+        # A sighting has no counterparty. Do not fabricate one from the sensor
+        # name merely to fill a shared endpoint column.
+        "destination_asset": None,
         "asset_kind": "mac",
         "engine_context": context or None,
     }

@@ -122,8 +122,7 @@ def build_payload(data: dict) -> dict:
     Map one Zeek JSON record onto the shared contract.
 
     Notices become detections; every other Zeek log becomes an observation with
-    `severity` fixed at the informational level (3). No `sid` is emitted for
-    observations, because Zeek did not match a signature.
+    no severity and no `sid`, because Zeek did not make either claim.
     """
     kind = detect_log_kind(data)
     observation_type = ZEEK_LOG_KINDS.get(kind, "connection")
@@ -187,10 +186,7 @@ def build_payload(data: dict) -> dict:
     else:
         payload["event_kind"] = "observation"
         payload["observation_type"] = observation_type
-        # Context carries no severity of its own; 3 is the shared scale's
-        # informational level and the UI renders observations without a
-        # severity badge.
-        payload["severity"] = 3
+        payload["severity"] = None
         payload["category"] = "Network context"
 
     return payload

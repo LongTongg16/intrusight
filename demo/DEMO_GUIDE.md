@@ -15,18 +15,21 @@ cd frontend && npm run dev                   # terminal 2
 ## Step 1 — load the corpus (10 seconds)
 
 ```bash
-python3 backend/tools/demo.py load
+python3 backend/tools/demo.py load --local
 ```
 
 ```
-SURICATA  Signature detection           4 records   4x detection
-SNORT     Rule-driven detection         4 records   4x detection
-ZEEK      Protocol / network context    7 records   3x connection, 1x detection,
-                                                    1x dns_query, 1x http_request,
-                                                    1x tls_handshake
-KISMET    Wireless visibility           6 records   2x detection, 2x wireless_ap,
-                                                    2x wireless_client
+Suricata  4 detection(s), 0 observation(s)
+Snort     4 detection(s), 0 observation(s)
+Zeek      1 detection(s), 6 observation(s)
+Kismet    2 detection(s), 4 observation(s)
+
+Processed 21 records: 21 inserted, 0 already present.
 ```
+
+The tool first displays the selected API target and requires confirmation. A
+second load reports the records as already present rather than creating 21
+duplicates.
 
 **Say:** every one of those records was parsed by the same ingestor that runs
 against a live sensor. Nothing was generated; this is recorded engine output
@@ -115,7 +118,7 @@ BSSID. A device sighting is not an attack, and the model records that difference
 * The Snort rules are lab rules, not production detection content.
 
 ```bash
-python3 backend/tools/demo.py clear
+python3 backend/tools/demo.py clear --local
 ```
 
 ## The one-sentence version
