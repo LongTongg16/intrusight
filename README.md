@@ -1,6 +1,6 @@
 # IntruSight
 
-**A multi-engine network intrusion detection alert management platform.** IntruSight
+**A multi-engine network security record management platform.** IntruSight
 centralizes and normalizes telemetry from Suricata, Snort, Zeek, and Kismet into one
 analyst workflow — without flattening what makes each engine useful.
 
@@ -24,6 +24,13 @@ first if the frontend looks unresponsive.
 The landing, features, and demo pages are public. Analyst and administrator views require
 an account: registration creates a `pending` user, and an administrator activates it
 before login succeeds.
+
+## Platform overview
+
+![IntruSight analyst overview](docs/screenshots/Overview.jpeg)
+
+The analyst overview brings records from Suricata, Snort, Zeek, and Kismet into one
+triage-oriented workspace while retaining each source engine's identity.
 
 ## What IntruSight does
 
@@ -82,6 +89,13 @@ the IP fields, and geolocation is skipped outright for `mac` records. The legacy
 `src_ip`/`dest_ip` fields remain populated for IP-based engines, so existing readers and
 filters are unaffected.
 
+### Unified multi-engine records
+
+![IntruSight multi-engine records](docs/screenshots/Alerts.jpeg)
+
+Shared fields are normalized into one review surface while engine-specific meaning is
+preserved, and observations remain distinguishable from detections.
+
 ## Architecture
 
 ```mermaid
@@ -106,11 +120,19 @@ flowchart LR
 IntruSight performs no detection of its own. Every detection in the queue was made by an
 external engine.
 
+### Engine-aware investigation
+
+![Kismet wireless detection investigation](docs/screenshots/AlertDetail.jpeg)
+
+Kismet records retain IEEE 802.11, MAC-address, and wireless metadata instead of being
+forced into IP-oriented fields, while triage state and investigation notes remain
+attached to the record.
+
 ## Key features
 
 - Multi-engine ingestion with a shared normalized record model and per-engine parsers
 - Detection/observation classification, severity mapping, and engine-context preservation
-- Alert filtering, status tracking, analyst notes, and GeoLite2 geolocation
+- Record filtering, status tracking, analyst notes, and GeoLite2 geolocation
 - Analyst dashboards, alert queue, traffic views, reports, and threat map
 - Administrator workflows: account approval, role and status management, log sources, database maintenance
 - Bcrypt password hashing, expiring JWTs, active-account enforcement, server-side session invalidation
