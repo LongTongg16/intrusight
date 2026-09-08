@@ -81,7 +81,6 @@ async def _authenticate_credentials(
                 "status": 1,
                 "role": 1,
                 "force_password_change": 1,
-                "token_invalidated_at": 1,
                 "token_version": 1,
             },
         )
@@ -94,20 +93,14 @@ async def _authenticate_credentials(
         raise HTTPException(status_code=403, detail="Account is not active")
     if user.get("role") not in {"Administrator", "Security Analyst"}:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    # token_version is the single session-generation boundary. Every logout,
+    # password reset/change, and account-status change increments the stored
+    # generation, so tokens from earlier generations fail deterministically.
+    # token_invalidated_at is retained only as second-precision audit metadata;
+    # comparing it with JWT iat would reintroduce timestamp precision races.
     if payload.get("ver", 0) != user.get("token_version", 0):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-    invalidated_at = user.get("token_invalidated_at")
-    if invalidated_at:
-        try:
-            invalidated = datetime.fromisoformat(invalidated_at)
-            if invalidated.tzinfo is None:
-                invalidated = invalidated.replace(tzinfo=timezone.utc)
-            issued = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
-        except (TypeError, ValueError, KeyError) as exc:
-            raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
-        if issued <= invalidated:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     return {**payload, "role": user["role"]}, user
 

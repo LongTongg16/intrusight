@@ -201,10 +201,11 @@ allows only `Authorization`, `Content-Type`, and `X-Ingest-API-Key` headers.
 An earlier Telegram alert-forwarding integration has been removed from the codebase, and
 [`backend/tests/test_telegram_containment.py`](backend/tests/test_telegram_containment.py)
 asserts it stays removed. Any credential appearing in this project's Git history should
-be treated as compromised and already revoked.
-[`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) records the remediation, rotations, and
-validation results. Perform a fresh threat model before running this against production
-network data.
+be treated as compromised and rotated or revoked by its owner. Removal from the current
+tree does not revoke historical values. [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) records
+repository remediation, outstanding operator actions, and validation results; it does
+not establish that external credential rotations or account password resets occurred.
+Perform a fresh threat model before running this against production network data.
 
 ## Local development
 

@@ -30,6 +30,19 @@ def test_access_tokens_include_issued_and_expiry_claims():
     assert payload["iat"] < payload["exp"]
 
 
+def test_expired_access_token_is_rejected(monkeypatch):
+    monkeypatch.setattr("core.security.ACCESS_TOKEN_EXPIRE_MINUTES", -1)
+    token = create_access_token(
+        {
+            "sub": "analyst@example.com",
+            "user_id": "507f1f77bcf86cd799439011",
+            "role": RoleEnum.ANALYST.value,
+            "ver": 0,
+        }
+    )
+    assert verify_token(token) is None
+
+
 def test_ingestion_rejects_incorrect_key():
     with pytest.raises(HTTPException) as exc:
         verify_ingest_api_key("incorrect-key")
@@ -88,6 +101,27 @@ async def test_authorization_uses_live_database_role():
         current_user = await get_current_user(_credentials_for())
 
     assert current_user["role"] == RoleEnum.ANALYST.value
+
+
+@pytest.mark.asyncio
+async def test_authorization_rejects_token_version_mismatch():
+    collection = MagicMock()
+    collection.find_one = AsyncMock(
+        return_value={
+            "status": "active",
+            "role": RoleEnum.ANALYST.value,
+            "token_version": 1,
+        }
+    )
+    fake_db = MagicMock()
+    fake_db.__getitem__.return_value = collection
+
+    with patch("database.db", fake_db):
+        with pytest.raises(HTTPException) as exc:
+            await get_current_user(_credentials_for(RoleEnum.ANALYST.value))
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid or expired token"
 
 
 @pytest.mark.asyncio

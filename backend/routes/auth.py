@@ -47,7 +47,8 @@ def parse_user_id(user_id: str) -> ObjectId:
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    """Return a normalized audit timestamp; token_version controls revocation."""
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 @router.post("/api/auth/register", response_model=UserOut, status_code=201)
@@ -210,22 +211,26 @@ async def force_change_password(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    new_version = user.get("token_version", 0) + 1
-    await db["users"].update_one(
-        {"_id": object_id},
+    updated_user = await db["users"].find_one_and_update(
+        {"_id": object_id, "force_password_change": True},
         {
             "$set": {
                 "hashed_password": hash_password(data.new_password),
                 "force_password_change": False,
                 "token_invalidated_at": utc_now(),
-                "token_version": new_version,
-            }
+            },
+            "$inc": {"token_version": 1},
         },
+        return_document=True,
     )
+    if not updated_user:
+        raise HTTPException(status_code=409, detail="Password-change state changed")
+
+    new_version = updated_user.get("token_version", 0)
     token = create_access_token(
         {
-            "sub": user["email"],
-            "role": user["role"],
+            "sub": updated_user["email"],
+            "role": updated_user["role"],
             "user_id": user_id,
             "ver": new_version,
         }

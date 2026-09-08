@@ -7,6 +7,13 @@ Scope: current tracked files, selected historical blobs, authentication and
 authorization, integrations, configuration, workflows, dependencies, archives,
 documentation, and deployment assumptions.
 
+**Status boundary:** findings and code-remediation results are historical to the
+dated audit passes above. The current tree contains no repository evidence that
+external credentials were rotated/revoked or affected account passwords were reset.
+Credentials historically committed or exposed must be treated as compromised and
+rotated/revoked by their owners. Removal from the current tree does not revoke
+historical values. Section 6 therefore remains an outstanding operator checklist.
+
 **No Git history was rewritten in either pass. No commit was created by the
 latest pass.**
 
@@ -138,7 +145,7 @@ should still be treated as exposed personal data.
 | --- | --- |
 | Secret validation | `_load_secret_key` in `backend/core/security.py` rejects missing, short (<32 char), and known-placeholder secrets at import time |
 | JWT algorithm | allow-listed to HS256/384/512; `verify_token` requires both `iat` and `exp` |
-| Session invalidation | `_authenticate_credentials` checks the live account, `status == "active"`, live role, `token_version`, and `token_invalidated_at`, and fails closed (503) when the auth store is unavailable |
+| Session invalidation | `_authenticate_credentials` checks the live account, `status == "active"`, live role, and exact `token_version`, and fails closed (503) when the auth store is unavailable. Logout, password changes/resets, and status changes increment that generation atomically; `token_invalidated_at` is normalized second-precision audit metadata, not an authorization boundary. |
 | Forced password change | blocked from normal routes by `get_current_user`; a separate `get_current_user_for_password_change` dependency is exposed only to that endpoint |
 | Registration role | `public_registration_is_analyst_only` validator on `UserIn` |
 | Admin authorization | `require_administrator` in `routes/auth.py` and `routes/logs.py`; inline role checks in `routes/maintenance.py` |
